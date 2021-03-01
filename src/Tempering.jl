@@ -1,5 +1,6 @@
 module Tempering
 
-# Write your package code here.
+include("testing.jl")
+export greet, foo, bar
 
 end
