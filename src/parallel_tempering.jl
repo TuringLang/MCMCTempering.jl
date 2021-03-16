@@ -1,7 +1,3 @@
-include("swap_acceptance.jl")
-include("temperature_scheduling.jl")
-include("stepping.jl")
-
 function ParallelTempering(
     model,
     sampler,
@@ -15,6 +11,8 @@ end
     ParallelTempering
 
 Samples `length(Δ)` parallel chains, each with `iters * m` samples from `model` via parallel tempering using the `sampler` and temperature schedule `Δ`
+
+# Arguments
 - `rng` random number generator provision
 - `model` an AbstractModel implementation defining the density likelihood for sampling
 - `sampler` a within-temperature proposal mechanism to update the Χ-marginal, from qᵦ(x, .)
@@ -24,6 +22,10 @@ Samples `length(Δ)` parallel chains, each with `iters * m` samples from `model`
 - `progress` controls whether to show the progress meter or not
 - `T₀` are a vector of the starting temperatures
 - `chain_type` determines the output format, pick from `Any`, `Chains` or `StructArray`
+
+# Outputs
+- A list of chains, one for each temperature in Δ
+- A list containing the temperature histories of each chain
 """
 function ParallelTempering(
     rng::Random.AbstractRNG,
@@ -42,27 +44,30 @@ function ParallelTempering(
     m > 0 || error("The number of proposals per iteration must be ≥ 1")
     Ntotal = iters * m
 
+    # Ensure Δ is in the correct form
     Δ = check_Δ(Δ)
+    # Ts maintains the temperature ordering across the parallel chains
     Ts = T₀
-    progress_id = UUIDs.uuid1(rng)
 
-    AbstractMCMC.@ifwithprogresslogger progress parentid=progress_id name="Sampling" begin
+    AbstractMCMC.@ifwithprogresslogger progress parentid=1 name="Sampling" begin
 
-        # init step
-        t, p_states, p_samples, p_chains, p_temperatures = parallel_init_step(rng, model, sampler, Δ, Ts, Ntotal, progress, progress_id; kwargs...)
+        # initialise the parallel chains
+        t, p_states, p_samples, p_chains, p_temperatures = parallel_init_step(rng, model, sampler, Δ, Ts, Ntotal, progress; kwargs...)
 
         for i in 1:iters
             k = rand(Distributions.Categorical(length(Δ) - 1)) # Pick randomly from 1, 2, ..., k-1
             A = swap_acceptance_pt(model, p_samples[k], p_samples[k + 1], Δ[Ts[k]], Δ[Ts[k + 1]])
 
             U = rand(Distributions.Uniform(0, 1))
+            # If the proposed temperature swap is accepted according to A and U, swap the temperatures for future steps
             if U ≤ A
                 temp = Ts[k]
                 Ts[k] = Ts[k + 1]
                 Ts[k + 1] = temp
             end
-            t, p_chains, p_temperatures = parallel_step_without_sampling(model, sampler, Δ, Ts, Ntotal, p_samples, p_chains, p_temperatures, t, progress, progress_id; kwargs...)
-            t, p_states, p_samples, p_chains, p_temperatures = parallel_steps(rng, model, sampler, Δ, Ts, Ntotal, m, p_chains, p_temperatures, p_states, t, progress, progress_id; kwargs...)
+            # Do a step without sampling to record the change in temperature
+            t, p_chains, p_temperatures = parallel_step_without_sampling(model, sampler, Δ, Ts, Ntotal, p_samples, p_chains, p_temperatures, t, progress; kwargs...)
+            t, p_states, p_samples, p_chains, p_temperatures = parallel_steps(rng, model, sampler, Δ, Ts, Ntotal, m, p_chains, p_temperatures, p_states, t, progress; kwargs...)
 
         end
 
