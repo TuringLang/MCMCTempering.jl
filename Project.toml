@@ -1,4 +1,4 @@
-name = "Tempering"
+name = "MCMCTempering"
 uuid = "ce233488-44ea-4441-b732-192676ce2298"
 authors = ["Harrison Wilde <h.wilde@warwick.ac.uk> and contributors"]
 version = "0.1.0"

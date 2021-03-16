@@ -1,4 +1,4 @@
-module Tempering
+module MCMCTempering
 
 import AbstractMCMC
 import AdvancedMH
@@ -14,6 +14,6 @@ include("stepping.jl")
 include("simulated_tempering.jl")
 include("parallel_tempering.jl")
 
-export SimulatedTempering, ParallelTempering, check_Δ
+export SimulatedTempering, ParallelTempering, check_Δ, swap_acceptance_pt, swap_acceptance_st
 
 end
