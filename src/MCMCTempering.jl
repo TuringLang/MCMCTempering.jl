@@ -6,7 +6,6 @@ import BangBang
 import Distributions
 import ProgressLogging
 import Random
-import UUIDs
 
 include("swap_acceptance.jl")
 include("temperature_scheduling.jl")
