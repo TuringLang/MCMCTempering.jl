@@ -24,7 +24,7 @@ Reconstructs `p_chains_fragmented` into one chain for each temperature, using `p
 - `p_chains_fragmented` is an array of chains, as sampled by the algorithm at varying temperatures
 - `p_temperatures` contains the temperature history for each chain
 """
-function reconstruct_chains(p_chains_frag, p_temperatures, p_temperature_indices, Δ)
+function reconstruct_chains(p_chains_frag, p_temperature_indices, Δ)
 
     p_chains_new = p_chains_frag
 

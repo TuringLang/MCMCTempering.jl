@@ -1,6 +1,7 @@
 using Plots
 using Distributions
 using AdvancedMH
+using MCMCChains
 include("src/temperature_scheduling.jl")
 
 θᵣ = [-1., 1., 2., 1., 15., 2., 90., 1.5]
@@ -32,4 +33,4 @@ spl = RWMH(MvNormal(8,1))
 # chain = sample(model, spl, 100000; chain_type=Chains)
 
 # chain2 = SimulatedTempering(model, spl, Δ)
-p_chains_frag, p_temperatures, p_temperature_indices = ParallelTempering(model, spl, Δ)
+p_chains, p_temperatures, p_temperature_indices = ParallelTempering(model, spl, Δ; chain_type=Chains)

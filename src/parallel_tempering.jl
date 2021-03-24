@@ -73,8 +73,7 @@ function ParallelTempering(
         end
 
     end
-    # p_chains = reconstruct_chains(p_chains, p_temperatures, Δ)
-    # return [AbstractMCMC.bundle_samples(p_chains[i], model, sampler, p_states[i], chain_type; kwargs...) for i in 1:length(Δ)], p_temperatures
-    return p_chains, p_temperatures, p_temperature_indices
+    p_chains = reconstruct_chains(p_chains, p_temperature_indices, Δ)
+    return [AbstractMCMC.bundle_samples(p_chains[i], model, sampler, p_states[i], chain_type) for i in 1:length(Δ)], p_temperatures, p_temperature_indices
 
 end

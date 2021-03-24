@@ -56,7 +56,7 @@ function SimulatedTempering(
     AbstractMCMC.@ifwithprogresslogger progress parentid=progress_id name="Sampling" begin
 
         # initialise the chain at the chosen starting temperature T₀
-        t, state, sample, chain, temperatures = init_step(rng, model, sampler, Δ[T], Ntotal, progress, progress_id; kwargs...)
+        t, state, sample, chain, temperatures, temperature_indices = init_step(rng, model, sampler, Δ[T], T, Ntotal, progress, progress_id; kwargs...)
 
         for i in 1:iters
             w = rand(Distributions.DiscreteNonParametric([-1, 1], [0.5, 0.5]))
@@ -69,8 +69,8 @@ function SimulatedTempering(
                 T = T′
             end
             # Do a step without sampling to record the change in temperature
-            t, chain, temperatures = step_without_sampling(model, sampler, Δ[T], Ntotal, sample, chain, temperatures, t, progress, progress_id; kwargs...)
-            t, state, sample, chain, temperatures = steps(rng, model, sampler, Δ[T], Ntotal, m, chain, temperatures, state, t, progress, progress_id; kwargs...)
+            t, chain, temperatures, temperature_indices = step_without_sampling(model, sampler, Δ[T], T, Ntotal, sample, chain, temperatures, temperature_indices, t, progress, progress_id; kwargs...)
+            t, state, sample, chain, temperatures, temperature_indices = steps(rng, model, sampler, Δ[T], T, Ntotal, m, chain, temperatures, temperature_indices, state, t, progress, progress_id; kwargs...)
             
         end
 
