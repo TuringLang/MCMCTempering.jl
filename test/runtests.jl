@@ -1,7 +1,11 @@
-using Tempering
+using MCMCTempering
 using Test
+using Distributions
+using Plots
+using AdvancedMH
+using MCMCChains
 
-@testset "Tempering.jl" begin
+@testset "MCMCTempering.jl" begin
 
     θᵣ = [-1., 1., 2., 1., 15., 2., 90., 1.5]
     γs = [0.15, 0.25, 0.3, 0.3]

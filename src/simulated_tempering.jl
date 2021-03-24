@@ -1,6 +1,6 @@
 function SimulatedTempering(
-    model,
-    sampler,
+    model::AbstractMCMC.AbstractModel,
+    sampler::AbstractMCMC.AbstractSampler,
     Δ::Array{Float64,1};
     kwargs...
 )
@@ -31,14 +31,14 @@ Samples `iters * m` samples from `model` via simulated tempering using the `samp
 """
 function SimulatedTempering(
     rng::Random.AbstractRNG,
-    model,
-    sampler,
+    model::AbstractMCMC.AbstractModel,
+    sampler::AbstractMCMC.AbstractSampler,
     Δ::Array{Float64,1};
-    iters = 2000,
+    iters::Integer = 2000,
     K = (f(β) = 1),
-    m = 50,
-    progress = true,
-    T₀ = 1,
+    m::Integer = 50,
+    progress::Bool = true,
+    T₀::Integer = 1,
     chain_type = Any,
     kwargs...
 )
@@ -51,11 +51,12 @@ function SimulatedTempering(
     Δ = check_Δ(Δ)
     # Ts maintains the temperature ordering across the parallel chains
     T = T₀
+    progress_id = UUIDs.uuid1(rng)
 
-    AbstractMCMC.@ifwithprogresslogger progress parentid=1 name="Sampling" begin
+    AbstractMCMC.@ifwithprogresslogger progress parentid=progress_id name="Sampling" begin
 
         # initialise the chain at the chosen starting temperature T₀
-        t, state, sample, chain, temperatures = init_step(rng, model, sampler, Δ[T], Ntotal, progress; kwargs...)
+        t, state, sample, chain, temperatures = init_step(rng, model, sampler, Δ[T], Ntotal, progress, progress_id; kwargs...)
 
         for i in 1:iters
             w = rand(Distributions.DiscreteNonParametric([-1, 1], [0.5, 0.5]))
@@ -68,8 +69,8 @@ function SimulatedTempering(
                 T = T′
             end
             # Do a step without sampling to record the change in temperature
-            t, chain, temperatures = step_without_sampling(model, sampler, Δ[T], Ntotal, sample, chain, temperatures, t, progress; kwargs...)
-            t, state, sample, chain, temperatures = steps(rng, model, sampler, Δ[T], Ntotal, m, chain, temperatures, state, t, progress; kwargs...)
+            t, chain, temperatures = step_without_sampling(model, sampler, Δ[T], Ntotal, sample, chain, temperatures, t, progress, progress_id; kwargs...)
+            t, state, sample, chain, temperatures = steps(rng, model, sampler, Δ[T], Ntotal, m, chain, temperatures, state, t, progress, progress_id; kwargs...)
             
         end
 

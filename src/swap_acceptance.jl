@@ -8,7 +8,7 @@ Calculates and returns the swap acceptance ratio to take the chain from inverse 
 - `β_proposed` is the proposed inverse temperature to step to for further iterations
 - `K` is the temperature normalising function
 """
-function swap_acceptance_st(model, sample, β, β_proposed, K)
+function swap_acceptance_st(model::AbstractMCMC.AbstractModel, sample, β::Float64, β_proposed::Float64, K)
     return min(
         1, 
         (K(β_proposed) * exp(AdvancedMH.logdensity(model, sample) * β_proposed)) / (K(β) * exp(AdvancedMH.logdensity(model, sample) * β))
@@ -27,7 +27,7 @@ Calculates and returns the swap acceptance ratio for swapping the temperature of
 - `βk` is the temperature of the `k`th chain
 - `βkp1` is the temperature of the `k + 1`th chain PT may be swapping the `k`th chain's temperature with
 """
-function swap_acceptance_pt(model, samplek, samplekp1, βk, βkp1)
+function swap_acceptance_pt(model::AbstractMCMC.AbstractModel, samplek, samplekp1, βk::Float64, βkp1::Float64)
     return min(
         1,
         exp(AdvancedMH.logdensity(model, samplek) * βkp1 + AdvancedMH.logdensity(model, samplekp1) * βk) / exp(AdvancedMH.logdensity(model, samplek) * βk + AdvancedMH.logdensity(model, samplekp1) * βkp1)

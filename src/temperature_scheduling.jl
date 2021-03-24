@@ -15,3 +15,29 @@ function check_Δ(Δ)
     end
     return(Δ)
 end
+
+
+"""
+    reconstruct_chains
+
+Reconstructs `p_chains_fragmented` into one chain for each temperature, using `p_temperatures` to index the segments from each mixed-temp chain
+- `p_chains_fragmented` is an array of chains, as sampled by the algorithm at varying temperatures
+- `p_temperatures` contains the temperature history for each chain
+"""
+function reconstruct_chains(p_chains_frag, p_temperatures, Δ)
+
+    N = length(p_chains_frag)
+    p_chains = unzip(p_chains_frag)
+    p_temperatures = unzip(p_temperatures)
+
+    dict = Dict([Δ[i] => i for i in 1:length(Δ)])
+    make_lookup(dict) = key -> dict[key]
+    lookup = make_lookup(dict)
+
+    for i in 1:N
+        p_chains[i] = p_chains[i][collect(lookup.(p_temperatures[i]))]
+    end
+
+    return p_chains
+end
+# How to do this more efficiently?

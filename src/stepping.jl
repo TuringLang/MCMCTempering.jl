@@ -1,15 +1,3 @@
-
-"""
-    unzip
-
-Standard solution to inverting the zip operation, turn a collection of lists of items of varying type into a collection of lists of each type of item
-i.e. [[1, a, A], [2, b, B]] -> [[1, 2], [a, b], [A, B]]
-- `collection` of items to unzip and return
-"""
-function unzip(collection)
-    collect(zip(collection...))
-end
-
 """
     init_step
 
@@ -32,11 +20,12 @@ Initialise a chain by applying the appropriate tempering to the model, calling `
 """
 function init_step(
     rng::Random.AbstractRNG, 
-    model, 
-    sampler, 
-    β,
-    Ntotal,
-    progress; 
+    model::AbstractMCMC.AbstractModel, 
+    sampler::AbstractMCMC.AbstractSampler, 
+    β::Float64,
+    Ntotal::Integer,
+    progress::Bool,
+    progress_id::UUIDs.UUID; 
     kwargs...
 )
 
@@ -47,7 +36,7 @@ function init_step(
     chain = AbstractMCMC.samples(sample, model, sampler, Ntotal; kwargs...)
     chain = AbstractMCMC.save!!(chain, sample, 1, modelᵦ, sampler, Ntotal; kwargs...)
     # TODO progress waiting on the bug caught and fixed in ProgressLogging to be merged to master before enabling this
-    # progress && ProgressLogging.@logprogress _id=1 t / Ntotal
+    # progress && ProgressLogging.@logprogress _id=progress_id t / Ntotal
 
     return 1, state, sample, chain, [β]
 
@@ -75,21 +64,22 @@ Store the sample, temperature and iterate `t`, but do not actually make a new pr
 - `temperatures` contains the temperature history of the chain
 """
 function step_without_sampling(
-    model,
-    sampler,
-    β,
-    Ntotal,
+    model::AbstractMCMC.AbstractModel,
+    sampler::AbstractMCMC.AbstractSampler,
+    β::Float64,
+    Ntotal::Integer,
     sample,
     chain,
-    temperatures,
-    t,
-    progress;
+    temperatures::Array{Float64,1},
+    t::Int64,
+    progress::Bool,
+    progress_id::UUIDs.UUID;
     kwargs...
 )
     t += 1
     chain = AbstractMCMC.save!!(chain, sample, t, model, sampler, Ntotal; kwargs...)
     push!(temperatures, β)
-    # progress && ProgressLogging.@logprogress _id=1 t / Ntotal
+    # progress && ProgressLogging.@logprogress _id=progress_id t / Ntotal
 
     return t, chain, temperatures
 
@@ -123,16 +113,17 @@ Take `m` steps in the passed `chain` with the passed temperature via `β`
 """
 function steps(
     rng::Random.AbstractRNG,
-    model,
-    sampler,
-    β,
-    Ntotal,
-    m,
+    model::AbstractMCMC.AbstractModel,
+    sampler::AbstractMCMC.AbstractSampler,
+    β::Float64,
+    Ntotal::Integer,
+    m::Integer,
     chain,
-    temperatures,
+    temperatures::Array{Float64,1},
     state,
-    t,
-    progress;
+    t::Integer,
+    progress::Bool,
+    progress_id::UUIDs.UUID;
     kwargs...
 )
 
@@ -143,7 +134,7 @@ function steps(
         sample, state = AbstractMCMC.step(rng, modelᵦ, sampler, state; kwargs...)
         chain = AbstractMCMC.save!!(chain, sample, t, model, sampler, Ntotal; kwargs...)
         push!(temperatures, β)
-        # progress && ProgressLogging.@logprogress _id=1 t / Ntotal
+        # progress && ProgressLogging.@logprogress _id=progress_id t / Ntotal
     end
     return t, state, chain[end], chain, temperatures
 
@@ -172,12 +163,13 @@ Initialise a chain for each temperature in `Δ` by taking the first `init_step` 
 """
 function parallel_init_step(
     rng::Random.AbstractRNG, 
-    model, 
-    sampler, 
-    Δ,
-    Ts,
-    Ntotal,
-    progress;
+    model::AbstractMCMC.AbstractModel, 
+    sampler::AbstractMCMC.AbstractSampler, 
+    Δ::Array{Float64,1},
+    Ts::Array{Int64,1},
+    Ntotal::Integer,
+    progress::Bool,
+    progress_id::UUIDs.UUID;
     kwargs...
 )
     # p_states = Array{Any}(length(Δ))
@@ -185,7 +177,7 @@ function parallel_init_step(
     # p_chains = [Any for i in 1:length(Δ)]
     # p_temperatures = [Any for i in 1:length(Δ)]
     Ts = collect(1:length(Δ))
-    t, p_states, p_samples, p_chains, p_temperatures = unzip(map(i -> init_step(rng, model, sampler, Δ[Ts[i]], Ntotal, progress; kwargs...), Ts))
+    t, p_states, p_samples, p_chains, p_temperatures = unzip(map(i -> init_step(rng, model, sampler, Δ[Ts[i]], Ntotal, progress, progress_id; kwargs...), Ts))
     # for i in Ts
     #     t, p_states[i], p_samples[i], p_chains[i], p_temperatures[i] = init_step(rng, model, sampler, Δ[Ts[i]], Ntotal, progress, progress_id; kwargs...)
     # end
@@ -215,19 +207,20 @@ Store the sample, temperature and iterate `t` for each chain, but do not actuall
 - `p_temperatures` contains the temperature history of each chain
 """
 function parallel_step_without_sampling(
-    model,
-    sampler,
-    Δ,
-    Ts,
-    Ntotal,
+    model::AbstractMCMC.AbstractModel,
+    sampler::AbstractMCMC.AbstractSampler,
+    Δ::Array{Float64,1},
+    Ts::Array{Int64,1},
+    Ntotal::Integer,
     p_samples,
     p_chains,
     p_temperatures,
-    t,
-    progress;
+    t::Integer,
+    progress::Bool,
+    progress_id::UUIDs.UUID;
     kwargs...
 )
-    t, p_chains, p_temperatures = unzip(map(i -> step_without_sampling(model, sampler, Δ[Ts[i]], Ntotal, p_samples[i], p_chains[i], p_temperatures[i], t, progress; kwargs...), 1:length(Δ)))
+    t, p_chains, p_temperatures = unzip(map(i -> step_without_sampling(model, sampler, Δ[Ts[i]], Ntotal, p_samples[i], p_chains[i], p_temperatures[i], t, progress, progress_id; kwargs...), 1:length(Δ)))
     return t[1], p_chains, p_temperatures
 
 end
@@ -260,22 +253,23 @@ Take `m` steps in each `chain` of `p_chains` using temperatures `Δ` ordered by 
 - `p_temperatures` contains the temperature history of each chain
 """
 function parallel_steps(
-    rng,
-    model,
-    sampler,
-    Δ,
-    Ts,
-    Ntotal,
-    m,
+    rng::Random.AbstractRNG,
+    model::AbstractMCMC.AbstractModel,
+    sampler::AbstractMCMC.AbstractSampler,
+    Δ::Array{Float64,1},
+    Ts::Array{Int64,1},
+    Ntotal::Integer,
+    m::Integer,
     p_chains,
     p_temperatures,
     p_states,
-    t,
-    progress;
+    t::Integer,
+    progress::Bool,
+    progress_id::UUIDs.UUID;
     kwargs...
 )
 
-    t, p_states, parallel_samples, p_chains, p_temperatures = unzip(map(i -> steps(rng, model, sampler, Δ[Ts[i]], Ntotal, m, p_chains[i], p_temperatures[i], p_states[i], t, progress; kwargs...), 1:length(Δ)))
+    t, p_states, parallel_samples, p_chains, p_temperatures = unzip(map(i -> steps(rng, model, sampler, Δ[Ts[i]], Ntotal, m, p_chains[i], p_temperatures[i], p_states[i], t, progress, progress_id; kwargs...), 1:length(Δ)))
     return t[1], p_states, parallel_samples, p_chains, p_temperatures
 
 end
