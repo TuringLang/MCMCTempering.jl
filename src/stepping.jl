@@ -23,6 +23,7 @@ function init_step(
     model::AbstractMCMC.AbstractModel, 
     sampler::AbstractMCMC.AbstractSampler, 
     β::Float64,
+    T::Integer,
     Ntotal::Integer,
     progress::Bool,
     progress_id::UUIDs.UUID; 
@@ -38,7 +39,7 @@ function init_step(
     # TODO progress waiting on the bug caught and fixed in ProgressLogging to be merged to master before enabling this
     # progress && ProgressLogging.@logprogress _id=progress_id t / Ntotal
 
-    return 1, state, sample, chain, [β]
+    return 1, state, sample, chain, [β], [T]
 
 end
 
@@ -67,10 +68,12 @@ function step_without_sampling(
     model::AbstractMCMC.AbstractModel,
     sampler::AbstractMCMC.AbstractSampler,
     β::Float64,
+    T::Integer,
     Ntotal::Integer,
     sample,
     chain,
     temperatures::Array{Float64,1},
+    temperature_indices::Array{Int64,1},
     t::Int64,
     progress::Bool,
     progress_id::UUIDs.UUID;
@@ -79,9 +82,10 @@ function step_without_sampling(
     t += 1
     chain = AbstractMCMC.save!!(chain, sample, t, model, sampler, Ntotal; kwargs...)
     push!(temperatures, β)
+    push!(temperature_indices, T)
     # progress && ProgressLogging.@logprogress _id=progress_id t / Ntotal
 
-    return t, chain, temperatures
+    return t, chain, temperatures, temperature_indices
 
 end
 
@@ -116,10 +120,12 @@ function steps(
     model::AbstractMCMC.AbstractModel,
     sampler::AbstractMCMC.AbstractSampler,
     β::Float64,
+    T::Integer,
     Ntotal::Integer,
     m::Integer,
     chain,
     temperatures::Array{Float64,1},
+    temperature_indices::Array{Int64,1},
     state,
     t::Integer,
     progress::Bool,
@@ -134,9 +140,10 @@ function steps(
         sample, state = AbstractMCMC.step(rng, modelᵦ, sampler, state; kwargs...)
         chain = AbstractMCMC.save!!(chain, sample, t, model, sampler, Ntotal; kwargs...)
         push!(temperatures, β)
+        push!(temperature_indices, T)
         # progress && ProgressLogging.@logprogress _id=progress_id t / Ntotal
     end
-    return t, state, chain[end], chain, temperatures
+    return t, state, chain[end], chain, temperatures, temperature_indices
 
 end
 
@@ -176,12 +183,11 @@ function parallel_init_step(
     # p_samples = Array{Any}(length(Δ))
     # p_chains = [Any for i in 1:length(Δ)]
     # p_temperatures = [Any for i in 1:length(Δ)]
-    Ts = collect(1:length(Δ))
-    t, p_states, p_samples, p_chains, p_temperatures = unzip(map(i -> init_step(rng, model, sampler, Δ[Ts[i]], Ntotal, progress, progress_id; kwargs...), Ts))
+    t, p_states, p_samples, p_chains, p_temperatures, p_temperature_indices = unzip(map(i -> init_step(rng, model, sampler, Δ[Ts[i]], Ts[i], Ntotal, progress, progress_id; kwargs...), Ts))
     # for i in Ts
     #     t, p_states[i], p_samples[i], p_chains[i], p_temperatures[i] = init_step(rng, model, sampler, Δ[Ts[i]], Ntotal, progress, progress_id; kwargs...)
     # end
-    return t[1], p_states, p_samples, p_chains, p_temperatures, Ts
+    return t[1], p_states, p_samples, p_chains, p_temperatures, p_temperature_indices
 
 end
 
@@ -215,13 +221,14 @@ function parallel_step_without_sampling(
     p_samples,
     p_chains,
     p_temperatures,
+    p_temperature_indices,
     t::Integer,
     progress::Bool,
     progress_id::UUIDs.UUID;
     kwargs...
 )
-    t, p_chains, p_temperatures = unzip(map(i -> step_without_sampling(model, sampler, Δ[Ts[i]], Ntotal, p_samples[i], p_chains[i], p_temperatures[i], t, progress, progress_id; kwargs...), 1:length(Δ)))
-    return t[1], p_chains, p_temperatures
+    t, p_chains, p_temperatures, p_temperature_indices = unzip(map(i -> step_without_sampling(model, sampler, Δ[Ts[i]], Ts[i], Ntotal, p_samples[i], p_chains[i], p_temperatures[i], p_temperature_indices[i], t, progress, progress_id; kwargs...), 1:length(Δ)))
+    return t[1], p_chains, p_temperatures, p_temperature_indices
 
 end
 
@@ -262,6 +269,7 @@ function parallel_steps(
     m::Integer,
     p_chains,
     p_temperatures,
+    p_temperature_indices,
     p_states,
     t::Integer,
     progress::Bool,
@@ -269,7 +277,7 @@ function parallel_steps(
     kwargs...
 )
 
-    t, p_states, parallel_samples, p_chains, p_temperatures = unzip(map(i -> steps(rng, model, sampler, Δ[Ts[i]], Ntotal, m, p_chains[i], p_temperatures[i], p_states[i], t, progress, progress_id; kwargs...), 1:length(Δ)))
-    return t[1], p_states, parallel_samples, p_chains, p_temperatures
+    t, p_states, parallel_samples, p_chains, p_temperatures, p_temperature_indices = unzip(map(i -> steps(rng, model, sampler, Δ[Ts[i]], Ts[i], Ntotal, m, p_chains[i], p_temperatures[i], p_temperature_indices[i], p_states[i], t, progress, progress_id; kwargs...), 1:length(Δ)))
+    return t[1], p_states, parallel_samples, p_chains, p_temperatures, p_temperature_indices
 
 end

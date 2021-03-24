@@ -24,20 +24,37 @@ Reconstructs `p_chains_fragmented` into one chain for each temperature, using `p
 - `p_chains_fragmented` is an array of chains, as sampled by the algorithm at varying temperatures
 - `p_temperatures` contains the temperature history for each chain
 """
-function reconstruct_chains(p_chains_frag, p_temperatures, Δ)
+function reconstruct_chains(p_chains_frag, p_temperatures, p_temperature_indices, Δ)
 
-    N = length(p_chains_frag)
-    p_chains = unzip(p_chains_frag)
-    p_temperatures = unzip(p_temperatures)
+    p_chains_new = p_chains_frag
 
-    dict = Dict([Δ[i] => i for i in 1:length(Δ)])
-    make_lookup(dict) = key -> dict[key]
-    lookup = make_lookup(dict)
+    N = length(p_chains_frag[end])
 
-    for i in 1:N
-        p_chains[i] = p_chains[i][collect(lookup.(p_temperatures[i]))]
+    for i in 1:length(Δ)
+        for j in 1:N
+            p_chains_new[i][j] = p_chains_frag[p_temperature_indices[i][j]][j]
+        end
     end
 
-    return p_chains
+    return p_chains_new
 end
+# function reconstruct_chains(p_chains_frag, p_temperatures, p_temperature_indices, Δ)
+
+#     p_chains_new = p_chains_frag
+
+#     N = length(p_chains_frag)
+#     p_chains = unzip(p_chains_frag)
+#     p_temperatures = unzip(p_temperatures)
+
+#     dict = Dict([Δ[i] => i for i in 1:length(Δ)])
+#     make_lookup(dict) = key -> dict[key]
+#     lookup = make_lookup(dict)
+
+#     for i in 1:N
+#         p_chains[i] = p_chains[i][collect(lookup.(p_temperatures[i]))]
+#     end
+#     temp = [[p_chains[i][j] for i=1:N] for j=1:length(Δ)]
+
+#     return 
+# end
 # How to do this more efficiently?

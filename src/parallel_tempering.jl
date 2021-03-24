@@ -53,7 +53,7 @@ function ParallelTempering(
     AbstractMCMC.@ifwithprogresslogger progress parentid=progress_id name="Sampling" begin
 
         # initialise the parallel chains
-        t, p_states, p_samples, p_chains, p_temperatures = parallel_init_step(rng, model, sampler, Δ, Ts, Ntotal, progress, progress_id; kwargs...)
+        t, p_states, p_samples, p_chains, p_temperatures, p_temperature_indices = parallel_init_step(rng, model, sampler, Δ, Ts, Ntotal, progress, progress_id; kwargs...)
 
         for i in 1:iters
             k = rand(Distributions.Categorical(length(Δ) - 1)) # Pick randomly from 1, 2, ..., k-1
@@ -67,13 +67,14 @@ function ParallelTempering(
                 Ts[k + 1] = temp
             end
             # Do a step without sampling to record the change in temperature
-            t, p_chains, p_temperatures = parallel_step_without_sampling(model, sampler, Δ, Ts, Ntotal, p_samples, p_chains, p_temperatures, t, progress, progress_id; kwargs...)
-            t, p_states, p_samples, p_chains, p_temperatures = parallel_steps(rng, model, sampler, Δ, Ts, Ntotal, m, p_chains, p_temperatures, p_states, t, progress, progress_id; kwargs...)
+            t, p_chains, p_temperatures, p_temperature_indices = parallel_step_without_sampling(model, sampler, Δ, Ts, Ntotal, p_samples, p_chains, p_temperatures, p_temperature_indices, t, progress, progress_id; kwargs...)
+            t, p_states, p_samples, p_chains, p_temperatures, p_temperature_indices = parallel_steps(rng, model, sampler, Δ, Ts, Ntotal, m, p_chains, p_temperatures, p_temperature_indices, p_states, t, progress, progress_id; kwargs...)
 
         end
 
     end
-    p_chains = reconstruct_chains(p_chains, p_temperatures, Δ)
-    return [AbstractMCMC.bundle_samples(p_chains[i], model, sampler, p_states[i], chain_type; kwargs...) for i in 1:length(Δ)], p_temperatures
+    # p_chains = reconstruct_chains(p_chains, p_temperatures, Δ)
+    # return [AbstractMCMC.bundle_samples(p_chains[i], model, sampler, p_states[i], chain_type; kwargs...) for i in 1:length(Δ)], p_temperatures
+    return p_chains, p_temperatures, p_temperature_indices
 
 end

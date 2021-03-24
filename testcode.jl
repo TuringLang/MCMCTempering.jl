@@ -29,6 +29,7 @@ model = DensityModel(density)
 # Set up our sampler with a joint multivariate Normal proposal.
 spl = RWMH(MvNormal(8,1))
 
-chain = sample(model, spl, 100000; chain_type=Chains)
+# chain = sample(model, spl, 100000; chain_type=Chains)
 
-chain2 = SimulatedTempering(model, spl, Δ)
+# chain2 = SimulatedTempering(model, spl, Δ)
+p_chains_frag, p_temperatures, p_temperature_indices = ParallelTempering(model, spl, Δ)
