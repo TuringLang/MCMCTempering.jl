@@ -19,7 +19,7 @@ Samples `iters * m` samples from `model` via simulated tempering using the `samp
 - `sampler` a within-temperature proposal mechanism to update the Χ-marginal, from qᵦ(x, .)
 - `Δ` contains a sequence of 'inverse temperatures' {β₀, ..., βₙ} where 0 ≤ βₙ < ... < β₁ < β₀ = 1
 - `iters` ST algorithm iterations will be carried out
-- `K` defines a temperate normalising function ensuring the target is correctly proportional in the AR
+- `K` defines a temperate normalising function ensuring the target is correctly proportional ∈ the AR
 - `m` updates are carried out between each swap attempt
 - `progress` controls whether to show the progress meter or not
 - `T₀` is the starting temperature
@@ -51,14 +51,14 @@ function SimulatedTempering(
     Δ = check_Δ(Δ)
     # Ts maintains the temperature ordering across the parallel chains
     T = T₀
-    progress_id = UUIDs.uuid1(rng)
 
-    AbstractMCMC.@ifwithprogresslogger progress parentid=progress_id name="Sampling" begin
+    AbstractMCMC.@ifwithprogresslogger progress name="Sampling" begin
 
         # initialise the chain at the chosen starting temperature T₀
-        t, state, sample, chain, temperatures, temperature_indices = init_step(rng, model, sampler, Δ[T], T, Ntotal, progress, progress_id; kwargs...)
+        t, state, sample, chain, temperatures, temperature_indices = init_step(rng, model, sampler, Δ[T], T, Ntotal; kwargs...)
 
-        for i in 1:iters
+        for i ∈ 1:iters
+
             w = rand(Distributions.DiscreteNonParametric([-1, 1], [0.5, 0.5]))
             T′ = max(min(T + w, length(Δ)), 1) # If move would result in invalid temp then dont change, via max and min here
             A = swap_acceptance_st(model, sample, Δ[T′], Δ[T], K)
@@ -69,12 +69,14 @@ function SimulatedTempering(
                 T = T′
             end
             # Do a step without sampling to record the change in temperature
-            t, chain, temperatures, temperature_indices = step_without_sampling(model, sampler, Δ[T], T, Ntotal, sample, chain, temperatures, temperature_indices, t, progress, progress_id; kwargs...)
-            t, state, sample, chain, temperatures, temperature_indices = steps(rng, model, sampler, Δ[T], T, Ntotal, m, chain, temperatures, temperature_indices, state, t, progress, progress_id; kwargs...)
+            t, chain, temperatures, temperature_indices = step_without_sampling(model, sampler, Δ[T], T, Ntotal, sample, chain, temperatures, temperature_indices, t; kwargs...)
+            t, state, sample, chain, temperatures, temperature_indices = steps(rng, model, sampler, Δ[T], T, Ntotal, m, chain, temperatures, temperature_indices, state, t; kwargs...)
             
+            progress && ProgressLogging.@logprogress (i / iters)
+
         end
 
     end
-    return AbstractMCMC.bundle_samples(chain, model, sampler, state, chain_type; kwargs...), temperatures
+    return AbstractMCMC.bundle_samples(chain, model, sampler, state, chain_type; kwargs...), temperatures, temperature_indices
 
 end

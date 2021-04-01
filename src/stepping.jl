@@ -9,7 +9,6 @@ Initialise a chain by applying the appropriate tempering to the model, calling `
 - `sampler` a within-temperature proposal mechanism to update the Χ-marginal, from qᵦ(x, .)
 - `β` chosen inverse temperature for the step
 - `Ntotal` is the total number of steps to be taken during execution
-- `progress` controls whether to show the progress meter or not
 
 # Outputs
 - `t` is set to 1, counting the steps taken in this chain
@@ -24,9 +23,7 @@ function init_step(
     sampler::AbstractMCMC.AbstractSampler, 
     β::Float64,
     T::Integer,
-    Ntotal::Integer,
-    progress::Bool,
-    progress_id::UUIDs.UUID; 
+    Ntotal::Integer;
     kwargs...
 )
 
@@ -36,8 +33,6 @@ function init_step(
     sample, state = AbstractMCMC.step(rng, modelᵦ, sampler; kwargs...)
     chain = AbstractMCMC.samples(sample, model, sampler, Ntotal; kwargs...)
     chain = AbstractMCMC.save!!(chain, sample, 1, modelᵦ, sampler, Ntotal; kwargs...)
-    # TODO progress waiting on the bug caught and fixed in ProgressLogging to be merged to master before enabling this
-    # progress && ProgressLogging.@logprogress _id=progress_id t / Ntotal
 
     return 1, state, sample, chain, [β], [T]
 
@@ -57,7 +52,6 @@ Store the sample, temperature and iterate `t`, but do not actually make a new pr
 - `chain` stores all of the samples gathered so far 
 - `temperatures` stores the temperatures of the chain at each step
 - `t` maintains the index of the current step of the process
-- `progress` controls whether to show the progress meter or not
 
 # Outputs
 - `t` iterated to account for the step taken
@@ -74,21 +68,27 @@ function step_without_sampling(
     chain,
     temperatures::Array{Float64,1},
     temperature_indices::Array{Int64,1},
-    t::Int64,
-    progress::Bool,
-    progress_id::UUIDs.UUID;
+    t::Int64;
     kwargs...
 )
+
     t += 1
     chain = AbstractMCMC.save!!(chain, sample, t, model, sampler, Ntotal; kwargs...)
     push!(temperatures, β)
     push!(temperature_indices, T)
-    # progress && ProgressLogging.@logprogress _id=progress_id t / Ntotal
 
     return t, chain, temperatures, temperature_indices
 
 end
 
+# TemperedMHSampler
+
+# function AbstractMCMC.step()
+
+#     edit model
+#     call step
+
+# end
 
 """
     steps
@@ -106,7 +106,6 @@ Take `m` steps in the passed `chain` with the passed temperature via `β`
 - `temperatures` stores the temperatures of the chain at each step
 - `state` contains the state of the chain
 - `t` maintains the index of the current step of the process
-- `progress` controls whether to show the progress meter or not
 
 # Outputs
 - `t` iterated to account for the step taken
@@ -127,21 +126,19 @@ function steps(
     temperatures::Array{Float64,1},
     temperature_indices::Array{Int64,1},
     state,
-    t::Integer,
-    progress::Bool,
-    progress_id::UUIDs.UUID;
+    t::Integer;
     kwargs...
 )
 
     f(θ) = model.logdensity(θ) * β
     modelᵦ = AdvancedMH.DensityModel(f)
+
     for i in 1:m
         t += 1
-        sample, state = AbstractMCMC.step(rng, modelᵦ, sampler, state; kwargs...)
+        sample, state = AbstractMCMC.step(rng, modelᵦ, sampler, state; β=β, kwargs...)
         chain = AbstractMCMC.save!!(chain, sample, t, model, sampler, Ntotal; kwargs...)
         push!(temperatures, β)
         push!(temperature_indices, T)
-        # progress && ProgressLogging.@logprogress _id=progress_id t / Ntotal
     end
     return t, state, chain[end], chain, temperatures, temperature_indices
 
@@ -159,7 +156,6 @@ Initialise a chain for each temperature in `Δ` by taking the first `init_step` 
 - `sampler` a within-temperature proposal mechanism to update the Χ-marginal, from qᵦ(x, .)
 - `Δ` contains a sequence of 'inverse temperatures' {β₀, ..., βₙ} where 0 ≤ βₙ < ... < β₁ < β₀ = 1
 - `Ntotal` is the total number of steps to be taken during execution
-- `progress` controls whether to show the progress meter or not
 
 # Outputs
 - `t` is set to 1, counting the steps taken in this chain
@@ -174,19 +170,11 @@ function parallel_init_step(
     sampler::AbstractMCMC.AbstractSampler, 
     Δ::Array{Float64,1},
     Ts::Array{Int64,1},
-    Ntotal::Integer,
-    progress::Bool,
-    progress_id::UUIDs.UUID;
+    Ntotal::Integer;
     kwargs...
 )
-    # p_states = Array{Any}(length(Δ))
-    # p_samples = Array{Any}(length(Δ))
-    # p_chains = [Any for i in 1:length(Δ)]
-    # p_temperatures = [Any for i in 1:length(Δ)]
-    t, p_states, p_samples, p_chains, p_temperatures, p_temperature_indices = unzip(map(i -> init_step(rng, model, sampler, Δ[Ts[i]], Ts[i], Ntotal, progress, progress_id; kwargs...), Ts))
-    # for i in Ts
-    #     t, p_states[i], p_samples[i], p_chains[i], p_temperatures[i] = init_step(rng, model, sampler, Δ[Ts[i]], Ntotal, progress, progress_id; kwargs...)
-    # end
+
+    t, p_states, p_samples, p_chains, p_temperatures, p_temperature_indices = unzip(map(i -> init_step(rng, model, sampler, Δ[Ts[i]], Ts[i], Ntotal; kwargs...), Ts))
     return t[1], p_states, p_samples, p_chains, p_temperatures, p_temperature_indices
 
 end
@@ -205,7 +193,6 @@ Store the sample, temperature and iterate `t` for each chain, but do not actuall
 - `p_chains` stores all of the samples gathered so far in each chain
 - `p_temperatures` contains the temperature history of each chain
 - `t` maintains the index of the current step of the process
-- `progress` controls whether to show the progress meter or not
 
 # Outputs
 - `t` iterated to account for the step taken
@@ -222,12 +209,10 @@ function parallel_step_without_sampling(
     p_chains,
     p_temperatures,
     p_temperature_indices,
-    t::Integer,
-    progress::Bool,
-    progress_id::UUIDs.UUID;
+    t::Integer;
     kwargs...
 )
-    t, p_chains, p_temperatures, p_temperature_indices = unzip(map(i -> step_without_sampling(model, sampler, Δ[Ts[i]], Ts[i], Ntotal, p_samples[i], p_chains[i], p_temperatures[i], p_temperature_indices[i], t, progress, progress_id; kwargs...), 1:length(Δ)))
+    t, p_chains, p_temperatures, p_temperature_indices = unzip(map(i -> step_without_sampling(model, sampler, Δ[Ts[i]], Ts[i], Ntotal, p_samples[i], p_chains[i], p_temperatures[i], p_temperature_indices[i], t; kwargs...), 1:length(Δ)))
     return t[1], p_chains, p_temperatures, p_temperature_indices
 
 end
@@ -250,7 +235,6 @@ Take `m` steps in each `chain` of `p_chains` using temperatures `Δ` ordered by 
 - `p_temperatures` contains the temperature history of each chain
 - `p_states` contains each chain's current state
 - `t` maintains the index of the current step of the process
-- `progress` controls whether to show the progress meter or not
 
 # Outputs
 - `t` iterated to account for the step taken
@@ -271,13 +255,11 @@ function parallel_steps(
     p_temperatures,
     p_temperature_indices,
     p_states,
-    t::Integer,
-    progress::Bool,
-    progress_id::UUIDs.UUID;
+    t::Integer;
     kwargs...
 )
 
-    t, p_states, parallel_samples, p_chains, p_temperatures, p_temperature_indices = unzip(map(i -> steps(rng, model, sampler, Δ[Ts[i]], Ts[i], Ntotal, m, p_chains[i], p_temperatures[i], p_temperature_indices[i], p_states[i], t, progress, progress_id; kwargs...), 1:length(Δ)))
+    t, p_states, parallel_samples, p_chains, p_temperatures, p_temperature_indices = unzip(map(i -> steps(rng, model, sampler, Δ[Ts[i]], Ts[i], Ntotal, m, p_chains[i], p_temperatures[i], p_temperature_indices[i], p_states[i], t; kwargs...), 1:length(Δ)))
     return t[1], p_states, parallel_samples, p_chains, p_temperatures, p_temperature_indices
 
 end

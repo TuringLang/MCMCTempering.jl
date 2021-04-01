@@ -3,10 +3,12 @@ module MCMCTempering
 import AbstractMCMC
 import AdvancedMH
 import BangBang
+import Distributed
 import Distributions
+import DynamicPPL
 import ProgressLogging
 import Random
-import UUIDs
+import Turing
 
 include("utils.jl")
 include("swap_acceptance.jl")
