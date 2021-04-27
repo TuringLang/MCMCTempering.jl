@@ -31,6 +31,7 @@ function swap_acceptance_pt(model::AbstractMCMC.AbstractModel, samplek, samplekp
     return min(
         1,
         exp(AdvancedMH.logdensity(model, samplek) * βkp1 + AdvancedMH.logdensity(model, samplekp1) * βk) / exp(AdvancedMH.logdensity(model, samplek) * βk + AdvancedMH.logdensity(model, samplekp1) * βkp1)
+        # exp(abs(βk - βkp1) * abs(AdvancedMH.logdensity(model, samplek) - AdvancedMH.logdensity(model, samplekp1)))
     )
 end
 # How to generalise this outside of AdvancedMH?

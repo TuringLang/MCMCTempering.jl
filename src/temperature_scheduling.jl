@@ -1,5 +1,34 @@
 
 """
+    generate_Δ
+
+Returns a temperature schedule `Δ` generated in accordance with the chosen `swap_strategy` and `swap_ar_target`
+
+"""
+function generate_Δ(Nt, swap_strategy, swap_ar_target)
+
+    # Why these?
+    if swap_strategy == :standard
+        scaling_val = Nt - 1
+    elseif swap_strategy == :nonrev
+        scaling_val = 2
+    else
+        scaling_val = 1
+    end
+
+    Δ = zeros(Float64, Nt)
+    T = one(Float64) - exp(scaling_val)
+    for i ∈ 1:Nt
+        T += exp(scaling_val)
+        Δ[i] = one(Float64) / T
+    end
+
+    return Δ
+
+end
+
+
+"""
     check_Δ
 
 Returns a sorted `Δ` containing `{β₀, ..., βₙ}` conforming such that `0 ≤ βₙ < ... < β₁ < β₀ = 1`
@@ -13,7 +42,62 @@ function check_Δ(Δ)
     if Δ[1] != one(Δ[1])
         error("Δ must contain 1, for β₀")
     end
-    return(Δ)
+    return Δ
+end
+
+
+"""
+    setup_models
+
+Returns an array of `length(Δ)` models with a tempered density for each `β` in `Δ`
+"""
+function setup_models(model, Δ, sampler::DynamicPPL.Sampler{<:DynamicPPL.InferenceAlgorithm})
+    models = Vector{typeof(model), length(Δ)}
+    for i in 1:length(Δ)
+        
+    end
+end
+function setup_models(model, Δ, sampler::AbstractMCMC.AbstractSampler)
+    models = Vector{typeof(model), length(Δ)}
+    for i in 1:length(Δ)
+        f(θ) = model.logdensity(θ) * Δ[i]
+        models[i] = AdvancedMH.DensityModel(f)
+    end
+    return models
+end
+
+
+"""
+    get_tempered_densities
+
+Returns an array of `length(Δ)` models with a tempered density for each `β` in `Δ`
+"""
+function get_tempered_densities(model, Δ, sampler::DynamicPPL.Sampler{<:DynamicPPL.InferenceAlgorithm})
+    tempered_densities = Vector{undef, length(Δ)}
+    for i in 1:length(Δ)
+        ctx = DynamicPPL.MiniBatchContext(
+            DynamicPPL.DefaultContext(),
+            Δ[i]
+        )
+        varinfo_init = DynamicPPL.VarInfo(model, ctx)
+        function logπ(z)
+            varinfo = DynamicPPL.VarInfo(varinfo_init, DynamicPPL.SampleFromUniform(), z)
+            model(varinfo)
+
+            return DynamicPPL.getlogp(varinfo)
+        end
+        tempered_densities[i] = logπ
+    end
+    tempered_densities
+end
+
+function get_tempered_densities(model, Δ, sampler::AbstractMCMC.AbstractSampler)
+    tempered_densities = Vector{undef, length(Δ)}
+    for i in 1:length(Δ)
+        f(θ) = model.logdensity(θ) * Δ[i]
+        tempered_densities[i] = f
+    end
+    return tempered_densities
 end
 
 
