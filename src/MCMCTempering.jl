@@ -1,23 +1,22 @@
 module MCMCTempering
 
 import AbstractMCMC
-import AdvancedMH
-import BangBang
+import AbstractPPL
 import Distributed
 import Distributions
 import DynamicPPL
-import ProgressLogging
+import MCMCChains
 import Random
 import Turing
 
-include("utils.jl")
-include("swap_acceptance.jl")
-include("temperature_scheduling.jl")
+include("tempered.jl")
+include("ladders.jl")
+include("sampling.jl")
 include("stepping.jl")
-include("simulated_tempering.jl")
-include("parallel_tempering.jl")
-include("tempered_alg.jl")
+include("model.jl")
+include("swapping.jl")
+include("utils.jl")
 
-export SimulatedTempering, ParallelTempering, check_Δ, swap_acceptance_pt, swap_acceptance_st, Tempered
+export Tempered
 
 end
