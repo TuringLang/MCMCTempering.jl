@@ -8,8 +8,8 @@ import Random
 
 include("tempered.jl")
 include("ladders.jl")
-include("sampling.jl")
 include("stepping.jl")
+include("sampling.jl")
 include("model.jl")
 include("swapping.jl")
 include("utils.jl")

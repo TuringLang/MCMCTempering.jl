@@ -52,8 +52,6 @@ function swap_attempt(model, sampler, states, k, Δ, Δ_state)
     θk = get_θ(states, k, sampler)
     θkp1 = get_θ(states, k + 1, sampler)
 
-    @show θk, θkp1
-
     A = swap_acceptance_pt(logπk, logπkp1, θk, θkp1)
     U = rand(Distributions.Uniform(0, 1))
     # If the proposed temperature swap is accepted according to A and U, swap the temperatures for future steps
