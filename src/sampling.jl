@@ -1,21 +1,21 @@
 
-# function AbstractMCMC.sample(
-#     model::AbstractPPL.AbstractProbabilisticProgram,
-#     t_alg::TemperedAlgorithm,
-#     N::Integer;
-#     kwargs...
-# )
-#     return AbstractMCMC.sample(Random.GLOBAL_RNG, model, t_alg, N; kwargs...)
-# end
-# function AbstractMCMC.sample(
-#     rng::Random.AbstractRNG,
-#     model::AbstractPPL.AbstractProbabilisticProgram,
-#     t_alg::TemperedAlgorithm,
-#     N::Integer;
-#     kwargs...
-# )
-#     return AbstractMCMC.sample(rng, model, DynamicPPL.Sampler(t_alg, model), N; kwargs...)
-# end
+function AbstractMCMC.sample(
+    model::DynamicPPL.Model,
+    t_alg::TemperedAlgorithm,
+    N::Integer;
+    kwargs...
+)
+    return AbstractMCMC.sample(Random.GLOBAL_RNG, model, t_alg, N; kwargs...)
+end
+function AbstractMCMC.sample(
+    rng::Random.AbstractRNG,
+    model::DynamicPPL.Model,
+    t_alg::TemperedAlgorithm,
+    N::Integer;
+    kwargs...
+)
+    return AbstractMCMC.sample(rng, model, DynamicPPL.Sampler(t_alg, model), N; kwargs...)
+end
 # function AbstractMCMC.sample(
 #     rng::Random.AbstractRNG,
 #     model::AbstractPPL.AbstractProbabilisticProgram,

@@ -5,7 +5,6 @@ import Distributions
 import DynamicPPL
 import MCMCChains
 import Random
-import Turing
 
 include("tempered.jl")
 include("ladders.jl")

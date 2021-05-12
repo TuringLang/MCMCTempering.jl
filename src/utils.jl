@@ -11,18 +11,11 @@ Constructs the likelihood density function for a `model` weighted by `β`
 ## Notes
 - For sake of efficiency, the returned function is closed over an instance of `VarInfo`. This means that you *might* run into some weird behaviour if you call this method sequentially using different types; if that's the case, just generate a new one for each type using `make_`.
 """
-function make_tempered_logπ(model::DynamicPPL.Model, β)
-
-    ctx = DynamicPPL.MiniBatchContext(
-        DynamicPPL.LikelihoodContext(),
-        β
-    )
-    varinfo_init = DynamicPPL.VarInfo(model, ctx)
+function make_tempered_logπ(model::DynamicPPL.Model, sampler, varinfo_init)
 
     function logπ(z)
-        varinfo = DynamicPPL.VarInfo(varinfo_init, DynamicPPL.SampleFromUniform(), z)
+        varinfo = DynamicPPL.VarInfo(varinfo_init, sampler, z)
         model(varinfo)
-
         return DynamicPPL.getlogp(varinfo)
     end
 
@@ -40,7 +33,7 @@ Returns the `VarInfo` portion of the `k`th chain's state contained in `states`
 - `k` is the index of a chain in `states`
 """
 function get_vi(states, k)
-    return states[k][2]
+    return states[k][2].vi
 end
 
 
@@ -55,7 +48,7 @@ Uses the `sampler` to index the `VarInfo` of the `k`th chain and return the asso
 - `sampler` is used to index the `VarInfo` such that `θ` is returned
 """
 function get_θ(states, k, sampler)
-    return get_vi(states, k)[sampler]
+    return get_vi(states, k)[DynamicPPL.SampleFromPrior()]
 end
 
 

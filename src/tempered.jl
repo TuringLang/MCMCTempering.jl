@@ -1,20 +1,20 @@
 """
-    mutable struct TemperedAlgorithm <: Turing.InferenceAlgorithm
-        alg           :: Turing.InferenceAlgorithm
+    mutable struct TemperedAlgorithm
+        alg
         Δ             :: Vector{<:AbstractFloat}
         Δ_init        :: Vector{<:Integer}
         N_swap        :: Integer
         swap_strategy :: Symbol
     end
 
-A `TemperedAlgorithm` struct wraps an `InferenceAlgorithm` `alg` alongside:
+A `TemperedAlgorithm` struct wraps an `alg` alongside:
 - A temperature ladder `Δ` containing a list of inverse temperatures `β`s
 - The initial state of the tempered chains `Δ_init` in terms of which `β` each chain should begin at
 - The number of steps between each temperature swap attempt `N_swap`
 - The `swap_strategy` defining how these swaps should be carried out
 """
-mutable struct TemperedAlgorithm <: Turing.InferenceAlgorithm
-    alg           :: Turing.InferenceAlgorithm
+mutable struct TemperedAlgorithm
+    alg
     Δ             :: Vector{<:AbstractFloat}
     Δ_init        :: Vector{<:Integer}
     N_swap        :: Integer
@@ -23,7 +23,7 @@ end
 
 
 function Tempered(
-    alg::Turing.InferenceAlgorithm,
+    alg,
     Δ::Vector{<:AbstractFloat};
     swap_strategy::Symbol = :standard,
     kwargs...
@@ -31,7 +31,7 @@ function Tempered(
     return Tempered(alg, check_Δ(Δ), swap_strategy; kwargs...)
 end
 function Tempered(
-    alg::Turing.InferenceAlgorithm,
+    alg,
     Nt::Integer;
     swap_strategy::Symbol = :standard,
     kwargs...
@@ -60,14 +60,14 @@ end
 - TODO `store_swaps` is a flag determining whether to store the state of the chain after each swap move or not
 """
 function Tempered(
-    alg::Turing.InferenceAlgorithm,
+    alg,
     Δ::Vector{<:AbstractFloat},
     swap_strategy::Symbol;
     Δ_init = collect(1:length(Δ)),
     N_swap::Integer = 1,
     kwargs...
 )
-    length(Δ) >= 1 || error("More than one inverse temperatures must be provided.")
+    length(Δ) > 1 || error("More than one inverse temperatures must be provided.")
     N_swap >= 1 || error("This must be a positive integer.")
     return TemperedAlgorithm(alg, Δ, Δ_init, N_swap, swap_strategy)
 end
