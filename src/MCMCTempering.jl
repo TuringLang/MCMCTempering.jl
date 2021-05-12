@@ -1,8 +1,6 @@
 module MCMCTempering
 
 import AbstractMCMC
-import AbstractPPL
-import Distributed
 import Distributions
 import DynamicPPL
 import MCMCChains

@@ -1,4 +1,16 @@
+"""
+    mutable struct TemperedState
+        states        :: Array{Any}
+        Δ_state       :: Vector{<:Integer}
+        step_counter  :: Integer
+    end
 
+A `TemperedState` struct contains the `states` of each of the parallel chains used throughout parallel tempering,
+as pairs of `Transition`s and `VarInfo`s, it also stores necessary information for tempering:
+- `states` is an Array of pairs of `Transition`s and `VarInfo`s, one for each tempered chain
+- `Δ_state` contains the current ordering of temperatures to apply to the chains, i.e. indices to call the temperature ladder with
+- `step_counter` maintains the number of steps taken since the last swap attempt
+"""
 mutable struct TemperedState
     states        :: Array{Any}
     Δ_state       :: Vector{<:Integer}
@@ -60,7 +72,7 @@ end
 
 function swap_step(
     rng::Random.AbstractRNG,
-    model::Turing.Model,
+    model::DynamicPPL.Model,
     spl::DynamicPPL.Sampler{<:TemperedAlgorithm},
     ts::TemperedState
 )
