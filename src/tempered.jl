@@ -1,5 +1,5 @@
 """
-    mutable struct TemperedAlgorithm
+    mutable struct TemperedAlgorithm <: Turing.InferenceAlgorithm
         alg           :: Turing.InferenceAlgorithm
         Δ             :: Vector{<:AbstractFloat}
         Δ_init        :: Vector{<:Integer}
@@ -13,7 +13,7 @@ A `TemperedAlgorithm` struct wraps an `InferenceAlgorithm` `alg` alongside:
 - The number of steps between each temperature swap attempt `N_swap`
 - The `swap_strategy` defining how these swaps should be carried out
 """
-mutable struct TemperedAlgorithm
+mutable struct TemperedAlgorithm <: Turing.InferenceAlgorithm
     alg           :: Turing.InferenceAlgorithm
     Δ             :: Vector{<:AbstractFloat}
     Δ_init        :: Vector{<:Integer}

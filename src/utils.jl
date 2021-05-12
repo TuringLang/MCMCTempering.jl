@@ -11,7 +11,7 @@ Constructs the likelihood density function for a `model` weighted by `β`
 ## Notes
 - For sake of efficiency, the returned function is closed over an instance of `VarInfo`. This means that you *might* run into some weird behaviour if you call this method sequentially using different types; if that's the case, just generate a new one for each type using `make_`.
 """
-function make_tempered_logπ(model::AbstractPPL.AbstractProbabilisticProgram, β)
+function make_tempered_logπ(model::DynamicPPL.Model, β)
 
     ctx = DynamicPPL.MiniBatchContext(
         DynamicPPL.LikelihoodContext(),

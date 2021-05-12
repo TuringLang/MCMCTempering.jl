@@ -13,14 +13,14 @@ rest of the information being stored in the state.
 """
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
-    model::AbstractPPL.AbstractProbabilisticProgram,
+    model::DynamicPPL.Model,
     spl::DynamicPPL.Sampler{<:TemperedAlgorithm};
     kwargs...
 )
     states = [
         AbstractMCMC.step(
             rng,
-            TemperedModel(model, spl.alg.Δ[Δi]),
+            DynamicPPL.Model(model.name, TemperedEval(model, spl.alg.Δ[Δi]), model.args, model.defaults),
             DynamicPPL.Sampler(spl.alg.alg, model);
             kwargs...
         )
@@ -32,7 +32,7 @@ end
 
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
-    model::AbstractPPL.AbstractProbabilisticProgram,
+    model::DynamicPPL.Model,
     spl::DynamicPPL.Sampler{<:TemperedAlgorithm},
     ts;
     kwargs...
@@ -44,7 +44,7 @@ function AbstractMCMC.step(
         ts.states = [
             AbstractMCMC.step(
                 rng,
-                TemperedModel(model, spl.alg.Δ[ts.Δ_state[i]]),
+                DynamicPPL.Model(model.name, TemperedEval(model, spl.alg.Δ[ts.Δ_state[i]]), model.args, model.defaults),
                 DynamicPPL.Sampler(spl.alg.alg, model),
                 ts.states[i][2];
                 kwargs...
@@ -55,6 +55,7 @@ function AbstractMCMC.step(
     end
     return ts.states[1][1], ts
 end
+
 
 
 function swap_step(
