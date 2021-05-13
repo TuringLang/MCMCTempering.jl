@@ -51,5 +51,5 @@ function AbstractMCMC.bundle_samples(
     chain_type::Union{Type{MCMCChains.Chains},Type{Vector{NamedTuple}}};
     kwargs...
 )
-    return AbstractMCMC.bundle_samples(ts, model, DynamicPPL.Sampler(spl.alg.alg, model), state, chain_type)
+    return AbstractMCMC.bundle_samples(ts, model, DynamicPPL.Sampler(spl.alg.alg, model), state, chain_type; kwargs...)
 end

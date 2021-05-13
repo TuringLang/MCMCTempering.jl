@@ -15,6 +15,7 @@ mutable struct TemperedState
     states        :: Array{Any}
     Δ_state       :: Vector{<:Integer}
     step_counter  :: Integer
+    swap_history  :: Array{<:Integer, 2}
 end
 
 
@@ -33,12 +34,12 @@ function AbstractMCMC.step(
         AbstractMCMC.step(
             rng,
             DynamicPPL.Model(model.name, TemperedEval(model, spl.alg.Δ[Δi]), model.args, model.defaults),
-            DynamicPPL.Sampler(spl.alg.alg, model);
+            DynamicPPL.Sampler(spl.alg.alg, model, spl.selector);
             kwargs...
         )
         for Δi in spl.alg.Δ_init        
     ]
-    return states[1][1], TemperedState(states, spl.alg.Δ_init, 1)
+    return states[1][1], TemperedState(states, spl.alg.Δ_init, 1, Array{Integer, 2}(spl.alg.Δ_init'))
 end
 
 
@@ -57,7 +58,7 @@ function AbstractMCMC.step(
             AbstractMCMC.step(
                 rng,
                 DynamicPPL.Model(model.name, TemperedEval(model, spl.alg.Δ[ts.Δ_state[i]]), model.args, model.defaults),
-                DynamicPPL.Sampler(spl.alg.alg, model),
+                DynamicPPL.Sampler(spl.alg.alg, model, spl.selector),
                 ts.states[i][2];
                 kwargs...
             )
@@ -65,6 +66,7 @@ function AbstractMCMC.step(
         ]
         ts.step_counter += 1
     end
+    ts.swap_history = vcat(ts.swap_history, Array{Integer, 2}(ts.Δ_state'))
     return ts.states[1][1], ts
 end
 
@@ -77,7 +79,7 @@ function swap_step(
     ts::TemperedState
 )
     L = length(spl.alg.Δ) - 1
-    sampler = DynamicPPL.Sampler(spl.alg.alg, model)
+    sampler = DynamicPPL.Sampler(spl.alg.alg, model, spl.selector)
 
     if spl.alg.swap_strategy == :standard
 
