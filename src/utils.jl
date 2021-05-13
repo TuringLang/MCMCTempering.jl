@@ -48,7 +48,8 @@ Uses the `sampler` to index the `VarInfo` of the `k`th chain and return the asso
 - `sampler` is used to index the `VarInfo` such that `θ` is returned
 """
 function get_θ(states, k, sampler)
-    return get_vi(states, k)[DynamicPPL.SampleFromPrior()]
+    # return get_vi(states, k)[DynamicPPL.SampleFromPrior()]
+    return get_vi(states, k)[sampler]
 end
 
 
