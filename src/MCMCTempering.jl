@@ -14,6 +14,6 @@ include("model.jl")
 include("swapping.jl")
 include("utils.jl")
 
-export Tempered
+export Tempered, plot_swaps
 
 end
