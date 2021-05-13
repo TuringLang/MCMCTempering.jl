@@ -27,7 +27,7 @@ function AbstractMCMC.sample(
     n_repeats::Integer;
     kwargs...
 )
-    return AbstractMCMC.sample(Random.GLOBAL_RNG, model, t_alg, N; kwargs...)
+    return AbstractMCMC.sample(Random.GLOBAL_RNG, model, t_alg, parallel, N, n_repeats; kwargs...)
 end
 function AbstractMCMC.sample(
     rng::Random.AbstractRNG,
@@ -39,7 +39,7 @@ function AbstractMCMC.sample(
     chain_type=MCMCChains.Chains,
     kwargs...
 )
-    return AbstractMCMC.sample(rng, model, Sampler(t_alg, model), N; chain_type=chain_type, kwargs...)
+    return AbstractMCMC.sample(rng, model, DynamicPPL.Sampler(t_alg, model), parallel, N, n_repeats; chain_type=chain_type, kwargs...)
 end
 
 
