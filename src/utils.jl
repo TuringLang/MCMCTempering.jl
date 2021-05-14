@@ -1,4 +1,3 @@
-
 """
     make_tempered_logπ
 
@@ -11,7 +10,7 @@ Constructs the likelihood density function for a `model` weighted by `β`
 ## Notes
 - For sake of efficiency, the returned function is closed over an instance of `VarInfo`. This means that you *might* run into some weird behaviour if you call this method sequentially using different types; if that's the case, just generate a new one for each type using `make_`.
 """
-function make_tempered_logπ(model::DynamicPPL.Model, sampler, varinfo_init)
+function make_tempered_logπ(model::DynamicPPL.Model, sampler::DynamicPPL.Sampler, varinfo_init::DynamicPPL.VarInfo)
 
     function logπ(z)
         varinfo = DynamicPPL.VarInfo(varinfo_init, sampler, z)
@@ -32,9 +31,9 @@ Returns the `VarInfo` portion of the `k`th chain's state contained in `states`
 - `states` is 2D array containing `length(Δ)` pairs of transition + state for each chain
 - `k` is the index of a chain in `states`
 """
-function get_vi(states, k)
-    return states[k][2].vi
-end
+get_vi(states, k::Integer) = get_vi(states[k][2])
+get_vi(state::DynamicPPL.AbstractState) = state.vi
+get_vi(vi::DynamicPPL.VarInfo) = vi
 
 
 """
@@ -47,10 +46,8 @@ Uses the `sampler` to index the `VarInfo` of the `k`th chain and return the asso
 - `k` is the index of a chain in `states`
 - `sampler` is used to index the `VarInfo` such that `θ` is returned
 """
-function get_θ(states, k, sampler)
-    # return get_vi(states, k)[DynamicPPL.SampleFromPrior()]
-    return get_vi(states, k)[sampler]
-end
+get_θ(states, k::Integer, sampler::DynamicPPL.Sampler) = get_vi(states, k)[sampler]
+# get_vi(states, k)[DynamicPPL.SampleFromPrior()]
 
 
 """
@@ -62,6 +59,4 @@ Returns the `Transition` portion of the `k`th chain's state contained in `states
 - `states` is 2D array containing `length(Δ)` pairs of transition + state for each chain
 - `k` is the index of a chain in `states`
 """
-function get_trans(states, k)
-    return states[k][1]
-end
+get_trans(states, k::Integer) = states[k][1]
