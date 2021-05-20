@@ -4,6 +4,8 @@
 #     β     :: AbstractFloat
 # end
 
+function get_tempered_model end
+
 struct TemperedEval
     model :: DynamicPPL.Model
     β     :: AbstractFloat

@@ -25,6 +25,19 @@ resulting in a list of transitions and states, the first transition is then retu
 rest of the information being stored in the state.
 """
 function AbstractMCMC.step(
+    rng,
+    model,
+    spl::TemperedAlgorithm,
+    kwargs...
+)
+    states = [
+        AbstractMCMC.step(rng, get_tempered_model(model, spl.Δ[Δi]), spl.alg, kwargs...)
+        for Δi in spl.Δ_init
+    ]
+    return states[1][1], TemperedState(states, spl.Δ, spl.Δ_init, 1, Array{Integer, 2}(spl.Δ_init'))
+end
+
+function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model::DynamicPPL.Model,
     spl::DynamicPPL.Sampler{<:TemperedAlgorithm};
