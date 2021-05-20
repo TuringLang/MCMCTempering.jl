@@ -1,8 +1,6 @@
 
 function swap_βs(Δ_state, k)
-    temp = Δ_state[k]
-    Δ_state[k] = Δ_state[k + 1]
-    Δ_state[k + 1] = temp
+    Δ_state[k], Δ_state[k + 1] = Δ_state[k + 1], Δ_state[k]
     return Δ_state
 end
 
