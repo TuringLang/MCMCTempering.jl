@@ -1,24 +1,24 @@
 """
-    mutable struct TemperedAlgorithm
-        alg
-        Δ             :: Vector{<:AbstractFloat}
-        Δ_init        :: Vector{<:Integer}
-        N_swap        :: Integer
-        swap_strategy :: Symbol
+    struct TemperedSampler{A} <: AbstractSampler
+        internal_sampler :: A
+        Δ                :: Vector{<:AbstractFloat}
+        Δ_init           :: Vector{<:Integer}
+        N_swap           :: Integer
+        swap_strategy    :: Symbol
     end
 
-A `TemperedAlgorithm` struct wraps an `alg` alongside:
+A `TemperedSampler` struct wraps an `internal_sampler` (could just be an algorithm) alongside:
 - A temperature ladder `Δ` containing a list of inverse temperatures `β`s
 - The initial state of the tempered chains `Δ_init` in terms of which `β` each chain should begin at
 - The number of steps between each temperature swap attempt `N_swap`
 - The `swap_strategy` defining how these swaps should be carried out
 """
-mutable struct TemperedAlgorithm
-    alg
-    Δ             :: Vector{<:AbstractFloat}
-    Δ_init        :: Vector{<:Integer}
-    N_swap        :: Integer
-    swap_strategy :: Symbol
+struct TemperedSampler{A} <: AbstractMCMC.AbstractSampler
+    internal_sampler :: A
+    Δ                :: Vector{<:AbstractFloat}
+    Δ_init           :: Vector{<:Integer}
+    N_swap           :: Integer
+    swap_strategy    :: Symbol
 end
 
 
@@ -69,30 +69,5 @@ function Tempered(
 )
     length(Δ) > 1 || error("More than one inverse temperatures must be provided.")
     N_swap >= 1 || error("This must be a positive integer.")
-    return TemperedAlgorithm(alg, Δ, Δ_init, N_swap, swap_strategy)
+    return TemperedSampler(alg, Δ, Δ_init, N_swap, swap_strategy)
 end
-
-
-
-
-
-# # assume
-# function DynamicPPL.tilde(rng, ctx::DefaultContext, sampler{<:TemperedModelSampler}, right, vn::VarName, inds, vi)
-#     ctx = DynamicPPL.MiniBatchContext(
-#         ctx,
-#         sampler.β
-#     )
-#     return DynamicPPL.tilde(rng, ctx, sampler.sampler, right, vn, inds, vi)
-# end
-# function DynamicPPL.tilde(rng, ctx::LikelihoodContext, sampler{<:TemperedSampler}, right, vn::VarName, inds, vi)
-#     if ctx.vars isa NamedTuple && haskey(ctx.vars, getsym(vn))
-#         vi[vn] = vectorize(right, _getindex(getfield(ctx.vars, getsym(vn)), inds))
-#         settrans!(vi, false, vn)
-#     end
-#     return sampler.β * _tilde(rng, sampler.sampler, NoDist(right), vn, vi)
-# end
-# function DynamicPPL.tilde(rng, ctx::MiniBatchContext, sampler{<:TemperedSampler}, right, left::VarName, inds, vi)
-#     return tilde(rng, ctx.ctx, sampler.sampler, right, left, inds, vi)
-# end
-
-
