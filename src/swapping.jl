@@ -9,7 +9,7 @@ end
 function make_tempered_logπ end
 function get_θ end
 
-function get_densities_and_θ(
+function get_densities_and_θs(
     model,
     sampler::AbstractMCMC.AbstractSampler,
     states,

@@ -3,18 +3,18 @@
 MCMCTempering.jl provides implementations of MCMC sampling algorithms such as simulated and parallel tempering, that are robust to multi-modal target distributions. These algorithms leverage temperature scheduling to flatten out the target distribution and allow sampling to move more freely around a target's complete state space to better explore its mass.
 
 
-# Tutorial: Supporting MCMCTempering for an arbitrary sampler
+# Tutorial: Supporting MCMCTempering for an arbitrary sampler, namely `AdvancedHMC`
 
-We offer support through extrogenous implementation of the required API components in Turing, AdvancedHMC and AdvancedMH. This package has been built such that a minimal set of components are required in your package of samplers to allow them to be wrapped by MCMCTempering and all of its offered approaches. There is a base assumption that the sampler in question implements the interface offered in `AbstractMCMC`, this is a fairly lax requirement given the lightweight nature of this package and we recommend inspecting its (minimal) interface before writing off facilitating support of this package.
+We offer support for temperinig through extrogenous implementation of the required API components in the `Turing`, `AdvancedHMC` and `AdvancedMH` packages. This package has been built such that a minimal set of components are required to allow (a) sampler(s) to be wrapped by MCMCTempering and all of its accompanying functionality. There is a base assumption that the sampler in question implements the interface offered in `AbstractMCMC`, this is a fairly lax requirement given the lightweight nature of this package and we recommend inspecting its (minimal) interface before writing off `AbstractMCMC` and further, facilitating support of this package.
 
 To illustrate this, we step through a relatively simple example in order to get `AdvancedHMC` working with MCMCTempering.
 
 ## Tempering a sampler
 
-Firstly, we must observe the signature of the generic `sample` call exposed by `AbstractMCMC`, for this we require a `model`, a `sampler` and other args such as the number of samples `N`, whether or not to run chains in `parallel` etc. Given the aforementioned base assumption that your sampler should conform to `AbstractMCMC`'s `sample` and `step` structure, it is sufficient here to ensure these methods will be called as expected. In general, we carry through the tempering schedule and other information via the `sampler` as this is present in all cases; to do this in `AdvancedHMC`'s case, we must circumnavigate the internal definition of sample and build a `sampler` object ourselves (in this case we want to temper the `HMCSampler` from `AdvancedHMC`), this can be done like so:
+Firstly, observing the signature of the generic `sample` call exposed by `AbstractMCMC`, we see that we minimally require a `model`, a `sampler` and other args such as the number of samples `N` to return, etc. Given the aforementioned base assumption that your sampler should conform to `AbstractMCMC`'s `sample` and `step` structure, it is sufficient here to ensure these methods will be called as expected. In general, we carry through the tempering schedule and other information via the `sampler` as this is present in all cases; to do this in `AdvancedHMC`'s case, we must circumnavigate the internal definition of sample (which requires a user to provide a kernel, metric and adaptor) to build a `sampler` object ourselves (in this case we want to temper the `HMCSampler` from `AdvancedHMC` which is a struct containing the aforementioned three components), this can be done like so in this minimal working example based on standard usage of the `AdvancedHMC` package. These first lines are setup as in any other use of `AdvancedHMC`:
 
 ```julia
-using AdvancedHMC, Distributions, ForwardDiff, MCMCTempering
+using AdvancedHMC, Distributions, ForwardDiff
 
 # Choose parameter dimensionality and initial parameter value
 D = 10; initial_θ = rand(D)
@@ -32,18 +32,26 @@ initial_ϵ = find_good_stepsize(hamiltonian, initial_θ)
 integrator = Leapfrog(initial_ϵ)
 proposal = NUTS{MultinomialTS, GeneralisedNoUTurn}(integrator)
 adaptor = StanHMCAdaptor(MassMatrixAdaptor(metric), StepSizeAdaptor(0.8, integrator))
+```
+
+It is only after this step that we diverge from "standard usage" to pre-define a `HMCSampler` (note that this is simply done internally in `AdvancedHMC` anyway) and then wrap it in a call of `Tempered` providing an integer number of tempering levels to use:
+
+```julia
+using MCMCTempering
 
 sampler = HMCSampler(proposal, metric, adaptor)
 
 chain = sample(model, Tempered(sampler, 4), n_samples; discard_initial = n_adapts)
 ```
 
+So usage is fairly simple provided we stick with the expected `AbstractMCMC.sample` call arguments, to facilitate this usage of tempering we must next implement the minimal API described below.
+
 ## Stepping using the sampler and a tempered model
 
-Now we must provide a `make_tempered_model` implementation that returns an instance of the relevant model type, in `AdvancedHMC`'s case this is a `DifferentiableDensityModel` but should be whatever model type your sampler expects, where the internals of the model are adjusted according to an inverse temperature `β`:
+The first requirement for tempering is to be able to call the model's log likelihood density function ini product with an inverse temperature. For this we define the `make_tempered_model` function that returns an instance of the relevant model type, in `AdvancedHMC`'s case this is a `DifferentiableDensityModel` but should be whatever model type your sampler expects, where the internals of the model's log likelihood are adjusted according to an inverse temperature multiplier `β`:
 
 ```julia
-function make_tempered_model(model::DifferentiableDensityModel, β::T) where {T<:AbstractFloat}
+function MCMCTempering.make_tempered_model(model::DifferentiableDensityModel, β::T) where {T<:AbstractFloat}
     ℓπ_β(θ) = model.ℓπ(θ) * β
     ∂ℓπ∂θ_β(θ) = model.∂ℓπ∂θ(θ) * β
     model = DifferentiableDensityModel(ℓπ_β, ∂ℓπ∂θ_β)
@@ -51,12 +59,14 @@ function make_tempered_model(model::DifferentiableDensityModel, β::T) where {T<
 end
 ```
 
+This is all that is required to ensure `MCMCTempering`'s functionality injects between each step and ensures each chain in our implementation of parallel tempering can step according to the correct inverse temperature `β`.
+
 ## Carrying out temperature swap steps
 
-We must first offer a way to temper the *density* of the model, this is used during a temperature swap step, for this we implement `make_tempered_logπ` which accepts the `modeel` and a temperature `β` then returns a function `logπ(z)` which is a transformation of the `model`'s log likelihood function:
+For the tempering specific "swap steps" between temperature levels for each chain, we must first offer a way to temper the *density* of the model, for this we implement the `make_tempered_logπ` function which accepts the `model` and a temperature `β`; then it returns a function `logπ(z)` which is a transformation of the `model`'s log likelihood function:
 
 ```julia
-function make_tempered_logπ(model::DifferentiableDensityModel, β::T) where {T<:AbstractFloat}
+function MCMCTempering.make_tempered_logπ(model::DifferentiableDensityModel, β::T) where {T<:AbstractFloat}
     function logπ(z)
         return model.ℓπ(z) * β
     end
@@ -64,20 +74,20 @@ function make_tempered_logπ(model::DifferentiableDensityModel, β::T) where {T<
 end
 ```
 
-Access to the current proposed parameter values is require, this should be a relatively simple getter function accessing the `state` of the sampler:
+Access to the current proposed parameter values is required, and this should be a relatively simple getter function accessing the current `state` of the sampler in most cases to return `θ`:
 
 ```julia
-function get_θ(state::HMCState)
+function MCMCTempering.get_θ(state::HMCState)
     return state.z.θ
 end
 ```
 
-Both of these parts should then be used in a function called `get_densities_and_θs` that returns the densities and parameters for the `k`th and `k+1`th chains, the interface is built in this way as the requirements for accessing to the two aforementioned components can reasonably change, some require state information, sampler information, model information etc., this allows for flexibility in implementation.
+Both of these parts should then be used in a function called `get_densities_and_θs` that returns the densities and parameters for the `k`th and `k+1`th chains, the interface is built in this way as the requirements for accessing the two aforementioned components can reasonably change, with some samplers being built such that they require state information, sampler information, model information etc., this allows for flexibility in implementation.
 
-In this case, the implementation of `get_densities_and_θs` is relatively simple, in fact, this code represents the default "fallback" implementation of this function and so provided your sampler submits to this fairly standard set of arguments you do not need to implement this method:
+In this case, the implementation of `get_densities_and_θs` is relatively simple, in fact, this code represents the default "fallback" implementation of this function and so provided your sampler submits to this fairly standard set of arguments you do not need to implement this method as in this case of `AdvancedHMC`:
 
 ```julia
-function get_densities_and_θ(
+function get_densities_and_θs(
     model,
     sampler::AbstractMCMC.AbstractSampler,
     states,
@@ -93,7 +103,7 @@ function get_densities_and_θ(
 end
 ```
 
-Feel free to override this functionality though, this is necessary in `Turing` for example where the `sampler` and `VarInfo` are required to access the density and parameters:
+Feel free to override this functionality, this is necessary in `Turing.jl` for example where the `sampler` and `VarInfo` are required to access the density and parameters resultinig in the following implementations:
 
 ```julia
 function get_densities_and_θs(
@@ -115,7 +125,7 @@ function get_densities_and_θs(
 end
 
 
-function make_tempered_logπ(model::Model, β::T, sampler::DynamicPPL.Sampler, varinfo_init::DynamicPPL.VarInfo) where {T<:AbstractFloat}
+function MCMCTempering.make_tempered_logπ(model::Model, β::T, sampler::DynamicPPL.Sampler, varinfo_init::DynamicPPL.VarInfo) where {T<:AbstractFloat}
     
     function logπ(z)
         varinfo = DynamicPPL.VarInfo(varinfo_init, sampler, z)
@@ -129,5 +139,7 @@ end
 get_vi(state::Union{HMCState,GibbsState,EmceeState,SMCState}) = state.vi
 get_vi(vi::DynamicPPL.VarInfo) = vi
 
-get_θ(state, sampler::DynamicPPL.Sampler) = get_vi(state)[sampler]
+MCMCTempering.get_θ(state, sampler::DynamicPPL.Sampler) = get_vi(state)[sampler]
 ```
+
+At this point we have implemented all of the necessary components such that the first code block will run and we can temper `AdvancedHMC`'s samplers successfully.
