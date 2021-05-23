@@ -3,7 +3,7 @@
 MCMCTempering.jl provides implementations of MCMC sampling algorithms such as simulated and parallel tempering, that are robust to multi-modal target distributions. These algorithms leverage temperature scheduling to flatten out the target distribution and allow sampling to move more freely around a target's complete state space to better explore its mass.
 
 
-# Tutorial: Supporting MCMCTempering for an arbitrary sampler, namely `AdvancedHMC`
+# Tutorial: Supporting MCMCTempering for an arbitrary sampler, namely AdvancedHMC
 
 We offer support for temperinig through extrogenous implementation of the required API components in the `Turing`, `AdvancedHMC` and `AdvancedMH` packages. This package has been built such that a minimal set of components are required to allow (a) sampler(s) to be wrapped by MCMCTempering and all of its accompanying functionality. There is a base assumption that the sampler in question implements the interface offered in `AbstractMCMC`, this is a fairly lax requirement given the lightweight nature of this package and we recommend inspecting its (minimal) interface before writing off `AbstractMCMC` and further, facilitating support of this package.
 
@@ -103,7 +103,7 @@ function get_densities_and_θs(
 end
 ```
 
-Feel free to override this functionality, this is necessary in `Turing.jl` for example where the `sampler` and `VarInfo` are required to access the density and parameters resultinig in the following implementations:
+Feel free to override this functionality, this is necessary in `Turing.jl` for example where the `sampler` and `VarInfo` are required to access the density and parameters resulting in the following implementations:
 
 ```julia
 function get_densities_and_θs(
