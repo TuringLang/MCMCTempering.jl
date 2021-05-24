@@ -106,7 +106,7 @@ end
 In some cases we do need to override this functionality. This is necessary in `Turing.jl` for example where the `sampler` and `VarInfo` are required to access the density and parameters resulting in the following implementations:
 
 ```julia
-function get_densities_and_θs(
+function MCMCTempering.get_densities_and_θs(
     model::Model,
     sampler::Sampler{<:TemperedAlgorithm},
     states,
@@ -115,11 +115,11 @@ function get_densities_and_θs(
     Δ_state::Vector{<:Integer}
 ) where {T<:AbstractFloat}
 
-    logπk = make_tempered_logπ(model, Δ[Δ_state[k]], sampler, get_vi(states[k][2]))
-    logπkp1 = make_tempered_logπ(model, Δ[Δ_state[k + 1]], sampler, get_vi(states[k + 1][2]))
+    logπk = MCMCTempering.make_tempered_logπ(model, Δ[Δ_state[k]], sampler, get_vi(states[k][2]))
+    logπkp1 = MCMCTempering.make_tempered_logπ(model, Δ[Δ_state[k + 1]], sampler, get_vi(states[k + 1][2]))
     
-    θk = get_θ(states[k][2], sampler)
-    θkp1 = get_θ(states[k + 1][2], sampler)
+    θk = MCMCTempering.get_θ(states[k][2], sampler)
+    θkp1 = MCMCTempering.get_θ(states[k + 1][2], sampler)
     
     return logπk, logπkp1, θk, θkp1
 end
