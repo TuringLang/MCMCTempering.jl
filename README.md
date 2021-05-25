@@ -71,7 +71,10 @@ This is all that is required to ensure `MCMCTempering`'s functionality injects b
 For the tempering specific "swap steps" between pairs of chains' temperature levels, we must first offer a way to temper the *density* of the model; for this we implement the `make_tempered_logπ` function which accepts the `model` and a temperature `β`; then it returns a function `logπ(z)` which is a transformation of the `model`'s log likelihood function:
 
 ```julia
-function MCMCTempering.make_tempered_logπ(model::DifferentiableDensityModel, β::T) where {T<:AbstractFloat}
+function MCMCTempering.make_tempered_logπ(
+    model::DifferentiableDensityModel,
+    β::T
+) where {T<:AbstractFloat}
     function logπ(z)
         return model.ℓπ(z) * β
     end
@@ -82,8 +85,8 @@ end
 Access to the current proposed parameter values is required, and this should be a relatively simple getter function accessing the current `state` of the sampler in most cases to return `θ`:
 
 ```julia
-function MCMCTempering.get_θ(state::HMCState)
-    return state.z.θ
+function MCMCTempering.get_θ(trans::Transition)
+    return trans.z.θ
 end
 ```
 
