@@ -21,13 +21,18 @@ D = 10; initial_θ = rand(D)
 n_samples, n_adapts = 2_000, 1_000
 
 # Define the target distribution
-ℓπ(θ) = logpdf(MvNormal(zeros(D), ones(D)), θ)
-∂ℓπ∂θ = ForwardDiff
-model = DifferentiableDensityModel(ℓπ, ∂ℓπ∂θ)
+ℓprior(θ) = 0
+ℓlikelihood(θ) = logpdf(MvNormal(zeros(D), ones(D)), θ)
+∂ℓprior∂θ(θ) = ForwardDiff.gradient(ℓprior, θ)
+∂ℓlikelihood∂θ(θ) = ForwardDiff.gradient(ℓlikelihood, θ)
+model = DifferentiableDensityModel(
+    Joint(ℓprior, ℓlikelihood),
+    Joint(∂ℓprior∂θ, ∂ℓlikelihood∂θ)
+)
 
 # Define a Hamiltonian system
 metric = DiagEuclideanMetric(D)
-hamiltonian = Hamiltonian(metric, ℓπ, ∂ℓπ∂θ)
+hamiltonian = Hamiltonian(metric, model.ℓπ, model.∂ℓπ∂θ)
 initial_ϵ = find_good_stepsize(hamiltonian, initial_θ)
 integrator = Leapfrog(initial_ϵ)
 proposal = NUTS{MultinomialTS, GeneralisedNoUTurn}(integrator)

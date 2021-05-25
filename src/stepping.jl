@@ -34,7 +34,6 @@ function AbstractMCMC.step(
     spl::TemperedSampler,
     kwargs...
 )
-    @show model
     states = [
         AbstractMCMC.step(
             rng,
