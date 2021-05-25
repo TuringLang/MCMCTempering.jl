@@ -2,7 +2,6 @@ module MCMCTempering
 
 import AbstractMCMC
 import Distributions
-import MCMCChains
 import Random
 
 include("tempered.jl")
