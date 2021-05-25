@@ -31,14 +31,14 @@ rest of the information being stored in the state.
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
-    spl::TemperedSampler,
+    spl::TemperedSampler;
     kwargs...
 )
     states = [
         AbstractMCMC.step(
             rng,
             make_tempered_model(model, spl.Δ[Δi]),
-            spl.internal_sampler,
+            spl.internal_sampler;
             kwargs...
         )
         for Δi in spl.Δ_init
@@ -51,7 +51,7 @@ function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
     spl::TemperedSampler,
-    ts::TemperedState,
+    ts::TemperedState;
     kwargs...
 )
     if ts.step_counter == spl.N_swap
