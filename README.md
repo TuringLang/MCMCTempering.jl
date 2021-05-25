@@ -23,8 +23,8 @@ n_samples, n_adapts = 2_000, 1_000
 # Define the target distribution
 ℓprior(θ) = 0
 ℓlikelihood(θ) = logpdf(MvNormal(zeros(D), ones(D)), θ)
-∂ℓprior∂θ(θ) = ForwardDiff.gradient(ℓprior, θ)
-∂ℓlikelihood∂θ(θ) = ForwardDiff.gradient(ℓlikelihood, θ)
+∂ℓprior∂θ(θ) = (ℓprior(θ), ForwardDiff.gradient(ℓprior, θ))
+∂ℓlikelihood∂θ(θ) = (ℓlikelihood(θ), ForwardDiff.gradient(ℓlikelihood, θ))
 model = DifferentiableDensityModel(
     Joint(ℓprior, ℓlikelihood),
     Joint(∂ℓprior∂θ, ∂ℓlikelihood∂θ)
@@ -100,10 +100,13 @@ function get_densities_and_θs(
     Δ::Vector{T},
     Δ_state::Vector{<:Integer}
 ) where {T<:AbstractFloat}
+    
     logπk = make_tempered_logπ(model, Δ[Δ_state[k]])
     logπkp1 = make_tempered_logπ(model, Δ[Δ_state[k + 1]])
-    θk = get_θ(states[k][2])
-    θkp1 = get_θ(states[k + 1][2])
+    
+    θk = get_θ(states[k][1])
+    θkp1 = get_θ(states[k + 1][1])
+    
     return logπk, logπkp1, θk, θkp1
 end
 ```

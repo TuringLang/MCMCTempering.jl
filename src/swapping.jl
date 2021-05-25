@@ -9,6 +9,13 @@ end
 function make_tempered_logπ end
 function get_θ end
 
+"""
+    get_densities_and_θs
+
+Temper the `model`'s density using the `k`th and `k + 1`th chains' temperatures 
+selected using `Δ` and `Δ_state`. Then retrieve the parameters using the chains'
+current transitions via extracted from the collection of `states`
+"""
 function get_densities_and_θs(
     model,
     sampler::AbstractMCMC.AbstractSampler,
@@ -21,8 +28,8 @@ function get_densities_and_θs(
     logπk = make_tempered_logπ(model, Δ[Δ_state[k]])
     logπkp1 = make_tempered_logπ(model, Δ[Δ_state[k + 1]])
     
-    θk = get_θ(states[k][2])
-    θkp1 = get_θ(states[k + 1][2])
+    θk = get_θ(states[k][1])
+    θkp1 = get_θ(states[k + 1][1])
     
     return logπk, logπkp1, θk, θkp1
 end
