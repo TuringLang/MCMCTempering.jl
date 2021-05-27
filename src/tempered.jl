@@ -23,27 +23,27 @@ end
 
 
 function Tempered(
-    alg,
+    internal_sampler,
     Δ::Vector{<:AbstractFloat};
     swap_strategy::Symbol = :standard,
     kwargs...
 )
-    return Tempered(alg, check_Δ(Δ), swap_strategy; kwargs...)
+    return Tempered(internal_sampler, check_Δ(Δ), swap_strategy; kwargs...)
 end
 function Tempered(
-    alg,
+    internal_sampler,
     Nt::Integer;
     swap_strategy::Symbol = :standard,
     kwargs...
 )
-    return Tempered(alg, generate_Δ(Nt, swap_strategy), swap_strategy; kwargs...)
+    return Tempered(internal_sampler, generate_Δ(Nt, swap_strategy), swap_strategy; kwargs...)
 end
 
 """
     Tempered
 
 # Arguments
-- `alg` an `InferenceAlgorithm` to be used for underlying sampling and to apply tempering to
+- `internal_sampler` is an algorithm or sampler object to be used for underlying sampling and to apply tempering to
 - The temperature schedule can be defined either explicitly or just as an integer number of temperatures, i.e. as:
     - `Δ` containing a sequence of 'inverse temperatures' {β₀, ..., βₙ} where 0 ≤ βₙ < ... < β₁ < β₀ = 1
         OR
@@ -60,7 +60,7 @@ end
 - TODO `store_swaps` is a flag determining whether to store the state of the chain after each swap move or not
 """
 function Tempered(
-    alg,
+    internal_sampler,
     Δ::Vector{<:AbstractFloat},
     swap_strategy::Symbol;
     Δ_init = collect(1:length(Δ)),
