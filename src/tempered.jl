@@ -69,5 +69,5 @@ function Tempered(
 )
     length(Δ) > 1 || error("More than one inverse temperatures must be provided.")
     N_swap >= 1 || error("This must be a positive integer.")
-    return TemperedSampler(alg, Δ, Δ_init, N_swap, swap_strategy)
+    return TemperedSampler(internal_sampler, Δ, Δ_init, N_swap, swap_strategy)
 end
