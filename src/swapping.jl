@@ -21,9 +21,9 @@ function get_tempered_loglikelihoods_and_params(
     sampler::AbstractMCMC.AbstractSampler,
     states,
     k::Integer,
-    Δ::Vector{T},
+    Δ::Vector{Real},
     Δ_state::Vector{<:Integer}
-) where {T<:AbstractFloat}
+)
     
     logπk = make_tempered_loglikelihood(model, Δ[Δ_state[k]])
     logπkp1 = make_tempered_loglikelihood(model, Δ[Δ_state[k + 1]])

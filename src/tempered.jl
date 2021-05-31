@@ -1,7 +1,7 @@
 """
     struct TemperedSampler{A} <: AbstractSampler
         internal_sampler :: A
-        Δ                :: Vector{<:AbstractFloat}
+        Δ                :: Vector{<:Real}
         Δ_init           :: Vector{<:Integer}
         N_swap           :: Integer
         swap_strategy    :: Symbol
@@ -15,7 +15,7 @@ A `TemperedSampler` struct wraps an `internal_sampler` (could just be an algorit
 """
 struct TemperedSampler{A} <: AbstractMCMC.AbstractSampler
     internal_sampler :: A
-    Δ                :: Vector{<:AbstractFloat}
+    Δ                :: Vector{<:Real}
     Δ_init           :: Vector{<:Integer}
     N_swap           :: Integer
     swap_strategy    :: Symbol
@@ -24,7 +24,7 @@ end
 
 function Tempered(
     internal_sampler,
-    Δ::Vector{<:AbstractFloat};
+    Δ::Vector{<:Real};
     swap_strategy::Symbol = :standard,
     kwargs...
 )
@@ -61,7 +61,7 @@ end
 """
 function Tempered(
     internal_sampler,
-    Δ::Vector{<:AbstractFloat},
+    Δ::Vector{<:Real},
     swap_strategy::Symbol;
     Δ_init = collect(1:length(Δ)),
     N_swap::Integer = 1,
