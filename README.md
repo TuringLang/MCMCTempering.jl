@@ -68,10 +68,10 @@ This is all that is required to ensure `MCMCTempering`'s functionality injects b
 
 ## Carrying out temperature swap steps
 
-For the tempering specific "swap steps" between pairs of chains' temperature levels, we must first offer a way to temper the *density* of the model; for this we implement the `make_tempered_logπ` function which accepts the `model` and a temperature `β`; then it returns a function `logπ(z)` which is a transformation of the `model`'s log likelihood function:
+For the tempering specific "swap steps" between pairs of chains' temperature levels, we must first offer a way to temper the *density* of the model; for this we implement the `make_tempered_loglikelihood` function which accepts the `model` and a temperature `β`; then it returns a function `logπ(z)` which is a transformation of the `model`'s log likelihood function:
 
 ```julia
-function MCMCTempering.make_tempered_logπ(
+function MCMCTempering.make_tempered_loglikelihood(
     model::DifferentiableDensityModel,
     β::T
 ) where {T<:AbstractFloat}
@@ -85,17 +85,17 @@ end
 Access to the current proposed parameter values is required, and this should be a relatively simple getter function accessing the current `state` of the sampler in most cases to return `θ`:
 
 ```julia
-function MCMCTempering.get_θ(trans::Transition)
+function MCMCTempering.get_params(trans::Transition)
     return trans.z.θ
 end
 ```
 
-Both of these parts should then be used in a function called `get_densities_and_θs` that returns the densities and parameters for the `k`th and `k+1`th chains, the interface is built in this way as the requirements for accessing the two aforementioned components can reasonably change, with some samplers being built such that they require state information, sampler information, model information etc. to access these properties, this allows for flexibility in implementation.
+Both of these parts should then be used in a function called `get_tempered_loglikelihoods_and_params` that returns the densities and parameters for the `k`th and `k+1`th chains, the interface is built in this way as the requirements for accessing the two aforementioned components can reasonably change, with some samplers being built such that they require state information, sampler information, model information etc. to access these properties, this allows for flexibility in implementation.
 
-In this case, the implementation of `get_densities_and_θs` is relatively simple, in fact, the code below is the default "fallback" implementation of this function and so provided your sampler submits to this fairly standard set of arguments you do not need to implement this method, as is the case for `AdvancedHMC`:
+In this case, the implementation of `get_tempered_loglikelihoods_and_params` is relatively simple, in fact, the code below is the default "fallback" implementation of this function and so provided your sampler submits to this fairly standard set of arguments you do not need to implement this method, as is the case for `AdvancedHMC`:
 
 ```julia
-function get_densities_and_θs(
+function get_tempered_loglikelihoods_and_params(
     model,
     sampler::AbstractMCMC.AbstractSampler,
     states,
@@ -104,11 +104,11 @@ function get_densities_and_θs(
     Δ_state::Vector{<:Integer}
 ) where {T<:AbstractFloat}
     
-    logπk = make_tempered_logπ(model, Δ[Δ_state[k]])
-    logπkp1 = make_tempered_logπ(model, Δ[Δ_state[k + 1]])
+    logπk = make_tempered_loglikelihood(model, Δ[Δ_state[k]])
+    logπkp1 = make_tempered_loglikelihood(model, Δ[Δ_state[k + 1]])
     
-    θk = get_θ(states[k][1])
-    θkp1 = get_θ(states[k + 1][1])
+    θk = get_params(states[k][1])
+    θkp1 = get_params(states[k + 1][1])
     
     return logπk, logπkp1, θk, θkp1
 end
@@ -117,7 +117,7 @@ end
 In some cases we do need to override this functionality. This is necessary in `Turing.jl` for example where the `sampler` and `VarInfo` are required to access the density and parameters resulting in the following implementations:
 
 ```julia
-function MCMCTempering.get_densities_and_θs(
+function MCMCTempering.get_tempered_loglikelihoods_and_params(
     model::Model,
     sampler::Sampler{<:TemperedAlgorithm},
     states,
@@ -126,17 +126,17 @@ function MCMCTempering.get_densities_and_θs(
     Δ_state::Vector{<:Integer}
 ) where {T<:AbstractFloat}
 
-    logπk = MCMCTempering.make_tempered_logπ(model, Δ[Δ_state[k]], sampler, get_vi(states[k][2]))
-    logπkp1 = MCMCTempering.make_tempered_logπ(model, Δ[Δ_state[k + 1]], sampler, get_vi(states[k + 1][2]))
+    logπk = MCMCTempering.make_tempered_loglikelihood(model, Δ[Δ_state[k]], sampler, get_vi(states[k][2]))
+    logπkp1 = MCMCTempering.make_tempered_loglikelihood(model, Δ[Δ_state[k + 1]], sampler, get_vi(states[k + 1][2]))
     
-    θk = MCMCTempering.get_θ(states[k][2], sampler)
-    θkp1 = MCMCTempering.get_θ(states[k + 1][2], sampler)
+    θk = MCMCTempering.get_params(states[k][2], sampler)
+    θkp1 = MCMCTempering.get_params(states[k + 1][2], sampler)
     
     return logπk, logπkp1, θk, θkp1
 end
 
 
-function MCMCTempering.make_tempered_logπ(model::Model, β::T, sampler::DynamicPPL.Sampler, varinfo_init::DynamicPPL.VarInfo) where {T<:AbstractFloat}
+function MCMCTempering.make_tempered_loglikelihood(model::Model, β::T, sampler::DynamicPPL.Sampler, varinfo_init::DynamicPPL.VarInfo) where {T<:AbstractFloat}
     
     function logπ(z)
         varinfo = DynamicPPL.VarInfo(varinfo_init, sampler, z)
@@ -150,7 +150,7 @@ end
 get_vi(state::Union{HMCState,GibbsState,EmceeState,SMCState}) = state.vi
 get_vi(vi::DynamicPPL.VarInfo) = vi
 
-MCMCTempering.get_θ(state, sampler::DynamicPPL.Sampler) = get_vi(state)[sampler]
+MCMCTempering.get_params(state, sampler::DynamicPPL.Sampler) = get_vi(state)[sampler]
 ```
 
 At this point we have implemented all of the necessary components such that the first code block will run and we can temper `AdvancedHMC`'s samplers successfully.
