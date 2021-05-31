@@ -6,30 +6,30 @@ function swap_βs(Δ_state, k)
     return Δ_state
 end
 
-function make_tempered_logπ end
-function get_θ end
+function make_tempered_loglikelihood end
+function get_params end
 
 """
-    get_densities_and_θs
+    get_tempered_loglikelihoods_and_params
 
 Temper the `model`'s density using the `k`th and `k + 1`th chains' temperatures 
 selected using `Δ` and `Δ_state`. Then retrieve the parameters using the chains'
 current transitions via extracted from the collection of `states`
 """
-function get_densities_and_θs(
+function get_tempered_loglikelihoods_and_params(
     model,
     sampler::AbstractMCMC.AbstractSampler,
     states,
     k::Integer,
-    Δ::Vector{T},
+    Δ::Vector{Real},
     Δ_state::Vector{<:Integer}
-) where {T<:AbstractFloat}
+)
     
-    logπk = make_tempered_logπ(model, Δ[Δ_state[k]])
-    logπkp1 = make_tempered_logπ(model, Δ[Δ_state[k + 1]])
+    logπk = make_tempered_loglikelihood(model, Δ[Δ_state[k]])
+    logπkp1 = make_tempered_loglikelihood(model, Δ[Δ_state[k + 1]])
     
-    θk = get_θ(states[k][1])
-    θkp1 = get_θ(states[k + 1][1])
+    θk = get_params(states[k][1])
+    θkp1 = get_params(states[k + 1][1])
     
     return logπk, logπkp1, θk, θkp1
 end
@@ -56,7 +56,7 @@ end
 
 function swap_attempt(model, sampler, states, k, Δ, Δ_state)
     
-    logπk, logπkp1, θk, θkp1 = get_densities_and_θs(model, sampler, states, k, Δ, Δ_state)
+    logπk, logπkp1, θk, θkp1 = get_tempered_loglikelihoods_and_params(model, sampler, states, k, Δ, Δ_state)
     
     A = swap_acceptance_pt(logπk, logπkp1, θk, θkp1)
     U = rand(Distributions.Uniform(0, 1))
