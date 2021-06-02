@@ -1,12 +1,8 @@
-
 """
     generate_Δ
 
-Returns a temperature ladder `Δ` generated in accordance with the chosen `swap_strategy`
-
-# Arguments
-- `Nt` is the length of the resulting temperature ladder `Δ`
-- `swap_strategy` determines the scaling of the ladder
+Returns a temperature ladder `Δ` containing `Nt` temperatures,
+generated in accordance with the chosen `swap_strategy`
 """
 function generate_Δ(Nt, swap_strategy)
 
@@ -34,10 +30,7 @@ end
 """
     check_Δ
 
-Returns a sorted `Δ` containing `{β₀, ..., βₙ}` conforming such that `0 ≤ βₙ < ... < β₁ < β₀ = 1`
-
-# Arguments
-- `Δ` contains a sequence of 'inverse temperatures' `{β₀, ..., βₙ}` to validate
+Checks and returns a sorted `Δ` containing `{β₀, ..., βₙ}` conforming such that `0 ≤ βₙ < ... < β₁ < β₀ = 1`
 """
 function check_Δ(Δ)
     if !all(zero.(Δ) .≤ Δ .≤ one.(Δ))

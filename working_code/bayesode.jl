@@ -48,13 +48,13 @@ end
 model = fitlv(odedata, prob1)
 
 # This next command runs 3 independent chains without using multithreading. 
-chain1_mh = sample(model, MH(), MCMCThreads(), 10000, 30)
-chain1_nuts = sample(model, NUTS(.65), MCMCThreads(), 1000, 30)
+chain1_mh = sample(model, MH(), MCMCThreads(), 10000, 4)
+chain1_nuts = sample(model, NUTS(.65), 1000)
 # chain1_mh_test = mapreduce(c -> sample(model, NUTS(), 1000), chainscat, 1:3)
 
 
-chain2_mh = sample(model, Tempered(MH(), 2), MCMCThreads(), 10000, 30)
-chain2_nuts = sample(model, Tempered(NUTS(.65), 2), MCMCThreads(), 1000, 30)
+chain2_mh = sample(model, Tempered(MH(), 2), MCMCThreads(), 10000, 4)
+chain2_nuts = sample(model, Tempered(NUTS(.65), 2), 1000)
 
 chain3_mh = sample(model, Tempered(MH(), 3), MCMCThreads(), 10000, 30)
 chain3_nuts = sample(model, Tempered(NUTS(.65), 3), MCMCThreads(), 1000, 30)

@@ -7,10 +7,13 @@
         swap_history  :: Array{<:Integer, 2}
     end
 
-A `TemperedState` struct contains the `states` of each of the parallel chains used throughout parallel tempering,
-as pairs of `Transition`s and `VarInfo`s, it also stores necessary information for tempering:
-- `states` is an Array of pairs of `Transition`s and `VarInfo`s, one for each tempered chain
-- `Δ_state` contains the current ordering of temperatures to apply to the chains, i.e. indices to call the temperature ladder with
+A `TemperedState` struct contains the `states` of each of the parallel chains
+used throughout parallel tempering as pairs of `Transition`s and `VarInfo`s,
+it also stores necessary information for tempering:
+- `states` is an Array of pairs of `Transition`s and `VarInfo`s, one for each 
+  tempered chain
+- `Δ_state` contains the current ordering of temperatures to apply to the chains, i.e. 
+  indices to call the temperature ladder with
 - `step_counter` maintains the number of steps taken since the last swap attempt
 - `swap_history` reccords the history of swaps that occur in sampling
 """
@@ -45,8 +48,6 @@ function AbstractMCMC.step(
     ]
     return states[1][1], TemperedState(states, spl.Δ, spl.Δ_init, 1, Array{Integer, 2}(spl.Δ_init'))
 end
-
-
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
@@ -80,6 +81,13 @@ function AbstractMCMC.step(
 end
 
 
+"""
+    swap_step(rng, model, spl, ts)
+
+Uses the internals of the passed `TemperedSampler` - `spl` - and `TemperedState` -
+`ts` - to perform a "swap step" between temperatures, in accordance with the relevant
+swap strategy.
+"""
 function swap_step(
     rng::Random.AbstractRNG,
     model,
