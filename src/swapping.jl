@@ -11,6 +11,7 @@ end
 function make_tempered_loglikelihood end
 function get_params end
 
+
 """
     get_tempered_loglikelihoods_and_params(model, sampler, states, k, Δ, Δ_state)
 

@@ -1,5 +1,5 @@
 """
-    generate_Δ
+    generate_Δ(Nt, swap_strategy)
 
 Returns a temperature ladder `Δ` containing `Nt` temperatures,
 generated in accordance with the chosen `swap_strategy`
@@ -28,7 +28,7 @@ end
 
 
 """
-    check_Δ
+    check_Δ(Δ)
 
 Checks and returns a sorted `Δ` containing `{β₀, ..., βₙ}` conforming such that `0 ≤ βₙ < ... < β₁ < β₀ = 1`
 """
