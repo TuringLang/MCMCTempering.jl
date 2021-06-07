@@ -1,20 +1,23 @@
+"""
+    swap_βs(Δ_state, k)
 
+Swaps the `k`th and `k + 1`th entries of `Δ_state`.
+"""
 function swap_βs(Δ_state, k)
-    
     Δ_state[k], Δ_state[k + 1] = Δ_state[k + 1], Δ_state[k]
-    
     return Δ_state
 end
 
 function make_tempered_loglikelihood end
 function get_params end
 
+
 """
-    get_tempered_loglikelihoods_and_params
+    get_tempered_loglikelihoods_and_params(model, sampler, states, k, Δ, Δ_state)
 
 Temper the `model`'s density using the `k`th and `k + 1`th chains' temperatures 
-selected using `Δ` and `Δ_state`. Then retrieve the parameters using the chains'
-current transitions via extracted from the collection of `states`
+selected via `Δ` and `Δ_state`. Then retrieve the parameters using the chains'
+current transitions via extracted from the collection of `states`.
 """
 function get_tempered_loglikelihoods_and_params(
     model,
@@ -36,14 +39,11 @@ end
 
 
 """
-    swap_acceptance_pt
+    swap_acceptance_pt(logπk, logπkp1, θk, θkp1)
 
-Calculates and returns the swap acceptance ratio for swapping the temperature of two chains, the `k`th and `k + 1`th
-- `model` an AbstractModel implementation defining the density likelihood for sampling
-- `samplek` contains sampled parameters of the `k`th chain at which to calculate the log density
-- `samplekp1` contains sampled parameters of the `k + 1`th chain at which to calculate the log density
-- `θk` is the temperature of the `k`th chain
-- `θkp1` is the temperature of the `k + 1`th chain PT may be swapping the `k`th chain's temperature with
+Calculates and returns the swap acceptance ratio for swapping the temperature
+of two chains. Using tempered likelihoods `logπk` and `logπkp1` at the chains'
+current state parameters `θk` and `θkp1`.
 """
 function swap_acceptance_pt(logπk, logπkp1, θk, θkp1)
     return min(
@@ -54,6 +54,12 @@ function swap_acceptance_pt(logπk, logπkp1, θk, θkp1)
 end
 
 
+"""
+    swap_attempt(model, sampler, states, k, Δ, Δ_state)
+
+Attempt to swap the temperatures of two chains by tempering the densities and
+calculating the swap acceptance ratio; then swapping if it is accepted.
+"""
 function swap_attempt(model, sampler, states, k, Δ, Δ_state)
     
     logπk, logπkp1, θk, θkp1 = get_tempered_loglikelihoods_and_params(model, sampler, states, k, Δ, Δ_state)

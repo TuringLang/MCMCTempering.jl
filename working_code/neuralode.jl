@@ -68,5 +68,5 @@ samples, stats = sample(h, prop, Float64.(prob_neuralode.p), 500, adaptor, 1000;
 sampler = HMCSampler(prop, metric, adaptor)
 samplest = sample(model, Tempered(sampler, 2; N_swap=10000), 1000; discard_initial=500)
 
-get_θs(sam) = [sample.z.θ for sample in sam]
-Chains(get_θs(samplest))
+get_paramss(sam) = [sample.z.θ for sample in sam]
+Chains(get_paramss(samplest))
