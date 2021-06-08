@@ -6,6 +6,7 @@ import Random
 
 include("tempered.jl")
 include("ladders.jl")
+include("adaptation.jl")
 include("stepping.jl")
 include("model.jl")
 include("swapping.jl")

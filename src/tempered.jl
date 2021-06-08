@@ -19,6 +19,8 @@ struct TemperedSampler{A} <: AbstractMCMC.AbstractSampler
     Δ_init           :: Vector{<:Integer}
     N_swap           :: Integer
     swap_strategy    :: Symbol
+    adapt            :: Bool
+    Ρ                :: Vector{AdaptiveState}
 end
 
 
@@ -62,9 +64,14 @@ function tempered(
     swap_strategy::Symbol;
     Δ_init::Vector{<:Integer} = collect(1:length(Δ)),
     N_swap::Integer = 1,
+    adapt::Bool = true,
+    adapt_target::T = T(0.234),
+    adapt_scale::T = T(get_scaling_val(length(Δ), swap_strategy)),
+    adapt_step::T = T(0.66),
     kwargs...
-)
+) where {T<:Real}
     length(Δ) > 1 || error("More than one inverse temperatures must be provided.")
     N_swap >= 1 || error("This must be a positive integer.")
-    return TemperedSampler(internal_sampler, Δ, Δ_init, N_swap, swap_strategy)
+    Ρ = init_adaptation(Δ, adapt_target, adapt_scale, adapt_step)
+    return TemperedSampler(internal_sampler, Δ, Δ_init, N_swap, swap_strategy, adapt, Ρ)
 end

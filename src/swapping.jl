@@ -1,9 +1,9 @@
 """
-    swap_βs(Δ_state, k)
+    swap_betas(Δ_state, k)
 
 Swaps the `k`th and `k + 1`th entries of `Δ_state`.
 """
-function swap_βs(Δ_state, k)
+function swap_betas(Δ_state, k)
     Δ_state[k], Δ_state[k + 1] = Δ_state[k + 1], Δ_state[k]
     return Δ_state
 end
@@ -60,16 +60,22 @@ end
 Attempt to swap the temperatures of two chains by tempering the densities and
 calculating the swap acceptance ratio; then swapping if it is accepted.
 """
-function swap_attempt(model, sampler, states, k, Δ, Δ_state)
+function swap_attempt(model, sampler, ts, k, adapt, n)
+
+    states, Δ, Δ_state = ts.states, ts.Δ, ts.Δ_state
     
     logπk, logπkp1, θk, θkp1 = get_tempered_loglikelihoods_and_params(model, sampler, states, k, Δ, Δ_state)
     
-    A = swap_acceptance_pt(logπk, logπkp1, θk, θkp1)
+    swap_ar = swap_acceptance_pt(logπk, logπkp1, θk, θkp1)
     U = rand(Distributions.Uniform(0, 1))
-    # If the proposed temperature swap is accepted according to A and U, swap the temperatures for future steps
-    if U ≤ A
-        Δ_state = swap_βs(Δ_state, k)
+    # If the proposed temperature swap is accepted according to swap_ar and U, swap the temperatures for future steps
+    if U ≤ swap_ar
+        Δ_state = swap_betas(Δ_state, k)
     end
 
-    return Δ_state
+    if adapt
+        Ρ, Δ = adapt_ladder(ts.Ρ, ts.Δ, Δ_state, k, swap_ar, n)
+    end
+
+    return Ρ, Δ, Δ_state
 end

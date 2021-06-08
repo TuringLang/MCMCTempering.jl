@@ -1,10 +1,11 @@
 """
     mutable struct TemperedState
         states        :: Array{Any}
-        Δ             :: Vector{<:AbstractFloat}
+        Δ             :: Vector{<:Real}
         Δ_state       :: Vector{<:Integer}
         step_counter  :: Integer
         swap_history  :: Array{<:Integer, 2}
+        Ρ             :: Vector{AdaptiveState}
     end
 
 A `TemperedState` struct contains the `states` of each of the parallel chains
@@ -12,17 +13,21 @@ used throughout parallel tempering as pairs of `Transition`s and `VarInfo`s,
 it also stores necessary information for tempering:
 - `states` is an Array of pairs of `Transition`s and `VarInfo`s, one for each 
   tempered chain
+- `Δ` contains the ordered sequence of inverse temperatures
 - `Δ_state` contains the current ordering of temperatures to apply to the chains, i.e. 
   indices to call the temperature ladder with
 - `step_counter` maintains the number of steps taken since the last swap attempt
 - `swap_history` reccords the history of swaps that occur in sampling
+- `Ρ` contains all of the information required for adaptation of Δ
 """
 mutable struct TemperedState
     states        :: Array{Any}
-    Δ             :: Vector{<:AbstractFloat}
+    Δ             :: Vector{<:Real}
     Δ_state       :: Vector{<:Integer}
     step_counter  :: Integer
+    total_steps   :: Integer
     swap_history  :: Array{<:Integer, 2}
+    Ρ             :: Vector{AdaptiveState}
 end
 
 
@@ -46,7 +51,7 @@ function AbstractMCMC.step(
         )
         for Δi in spl.Δ_init
     ]
-    return states[1][1], TemperedState(states, spl.Δ, spl.Δ_init, 1, Array{Integer, 2}(spl.Δ_init'))
+    return states[1][1], TemperedState(states, spl.Δ, spl.Δ_init, 1, 1, Array{Integer, 2}(spl.Δ_init'), spl.Ρ)
 end
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
@@ -56,12 +61,9 @@ function AbstractMCMC.step(
     kwargs...
 )
     if ts.step_counter == spl.N_swap
-
-        ts.Δ_state = swap_step(rng, model, spl, ts)
+        ts.Ρ, ts.Δ, ts.Δ_state = swap_step(rng, model, spl, ts)
         ts.step_counter = 0
-
     else
-
         ts.states = [
             AbstractMCMC.step(
                 rng,
@@ -76,7 +78,7 @@ function AbstractMCMC.step(
     end
 
     ts.swap_history = vcat(ts.swap_history, Array{Integer, 2}(ts.Δ_state'))
-    
+    ts.total_steps += 1
     return ts.states[1][1], ts
 end
 
@@ -94,14 +96,14 @@ function swap_step(
     spl::TemperedSampler,
     ts::TemperedState
 )
-    L = length(spl.Δ) - 1
+    L = length(ts.Δ) - 1
     sampler = spl.internal_sampler
 
     if spl.swap_strategy == :standard
 
         k = rand(rng, Distributions.Categorical(L)) # Pick randomly from 1, 2, ..., k-1
-        Δ_state = swap_attempt(model, sampler, ts.states, k, spl.Δ, ts.Δ_state)
-    
+        Ρ, Δ, Δ_state = swap_attempt(model, sampler, ts, spl.adapt, ts.total_steps / L)
+
     else
 
         levels = Vector{Int}(undef, L)
@@ -116,10 +118,9 @@ function swap_step(
         end
 
         for k in levels
-            Δ_state = swap_attempt(model, sampler, ts.states, k, spl.Δ, ts.Δ_state)
+            Ρ, Δ, Δ_state = swap_attempt(model, sampler, ts, spl.adapt, ts.total_steps)
         end
-
+        
     end
-
-    return Δ_state
+    return Ρ, Δ, Δ_state
 end

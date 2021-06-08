@@ -1,11 +1,9 @@
 """
-    generate_Δ(Nt, swap_strategy)
+    get_scaling_val(Nt, swap_strategy)
 
-Returns a temperature ladder `Δ` containing `Nt` temperatures,
-generated in accordance with the chosen `swap_strategy`
+Calculates the correct scaling factor for polynomial step size between temperatures
 """
-function generate_Δ(Nt, swap_strategy)
-
+function get_scaling_val(Nt, swap_strategy)
     # Why these?
     if swap_strategy == :standard
         scaling_val = Nt - 1
@@ -15,15 +13,27 @@ function generate_Δ(Nt, swap_strategy)
         scaling_val = 1
     end
 
-    Δ = zeros(Float64, Nt)
-    T = one(Float64) - exp(scaling_val)
-    for i ∈ 1:Nt
-        T += exp(scaling_val)
-        Δ[i] = one(Float64) / T
+    return scaling_val
+end
+
+
+"""
+    generate_Δ(Nt, swap_strategy)
+
+Returns a temperature ladder `Δ` containing `Nt` temperatures,
+generated in accordance with the chosen `swap_strategy`
+"""
+function generate_Δ(Nt, swap_strategy)
+    scaling_val = get_scaling_val(Nt, swap_strategy)
+    Δ = zeros(Real, Nt)
+    β′ = one(Real)
+    Δ[1] = β′
+    for i ∈ 1:(Nt - 1)
+        β′ += exp(scaling_val)
+        Δ[i] = Δ[1] / β′
     end
 
     return Δ
-
 end
 
 
