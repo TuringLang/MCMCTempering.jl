@@ -60,7 +60,7 @@ using MCMCTempering
 
 sampler = HMCSampler(proposal, metric, adaptor)
 
-chain = sample(model, Tempered(sampler, 4), n_samples; discard_initial = n_adapts)
+chain = sample(model, tempered(sampler, 4), n_samples; discard_initial = n_adapts)
 ```
 
 So usage is fairly simple provided we stick with the expected `AbstractMCMC.sample` call arguments, to facilitate this usage of tempering we must next implement the minimal API described below.
