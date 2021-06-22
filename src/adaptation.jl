@@ -1,29 +1,29 @@
 
-struct PolynomialStep{T <: Real}
-    η :: T
-    c :: T
+struct PolynomialStep
+    η :: Real
+    c :: Real
 end
-function get(step::PolynomialStep{T}, k::Real) where {T <: Real}
-    step.c * (k + one(T)) ^ (-step.η)
+function get(step::PolynomialStep, k::Real)
+    step.c * (k + 1.) ^ (-step.η)
 end
 
 
-struct AdaptiveState{T <: Real}
-    swap_target :: T
-    scale       :: Base.RefValue{T}
-    step        :: PolynomialStep
+struct AdaptiveState
+    swap_target_ar :: Real
+    scale          :: Base.RefValue{<:Real}
+    step           :: PolynomialStep
 end
-function AdaptiveState(swap_target::T, scale::T, step::PolynomialStep) where {T <: Real}
+function AdaptiveState(swap_target::Real, scale::Real, step::PolynomialStep)
     AdaptiveState(swap_target, Ref(log(scale)), step)
 end
 
 
 function init_adaptation(
     Δ::Vector{<:Real},
-    swap_target::T,
-    scale::T,
-    γ::T
-) where {T<:Real}
+    swap_target::Real,
+    scale::Real,
+    γ::Real
+)
     Nt = length(Δ)
     step = PolynomialStep(γ, Nt - 1)
     Ρ = [AdaptiveState(swap_target, scale, step) for _ in 1:(Nt - 1)]
@@ -48,7 +48,7 @@ function adapt_rho(ρ::AdaptiveState, swap_ar, n)
 end
 
 
-function adapt_ladder(Ρ, Δ, Δ_state, k, swap_ar, n)
-    Ρ[Δ_state[k]].scale[] += adapt_rho(Ρ[Δ_state[k]], swap_ar, n)
+function adapt_ladder(Ρ, Δ, k, swap_ar, n)
+    Ρ[k].scale[] += adapt_rho(Ρ[k], swap_ar, n)
     return Ρ, rhos_to_ladder(Ρ, Δ)
 end
