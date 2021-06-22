@@ -1,11 +1,12 @@
 """
-    swap_βs(Δ_state, k)
+    swap_betas(chain_index, k)
 
-Swaps the `k`th and `k + 1`th entries of `Δ_state`.
+Swaps the `k`th and `k + 1`th temperatures.
+Use `sortperm()` to convert the `chain_index` to a `Δ_index` to be used in tempering moves.
 """
-function swap_βs(Δ_state, k)
-    Δ_state[k], Δ_state[k + 1] = Δ_state[k + 1], Δ_state[k]
-    return Δ_state
+function swap_betas(chain_index, k)
+    chain_index[k], chain_index[k + 1] = chain_index[k + 1], chain_index[k]
+    return sortperm(chain_index), chain_index
 end
 
 function make_tempered_loglikelihood end
@@ -13,11 +14,11 @@ function get_params end
 
 
 """
-    get_tempered_loglikelihoods_and_params(model, sampler, states, k, Δ, Δ_state)
+    get_tempered_loglikelihoods_and_params(model, sampler, states, k, Δ, chain_index)
 
-Temper the `model`'s density using the `k`th and `k + 1`th chains' temperatures 
-selected via `Δ` and `Δ_state`. Then retrieve the parameters using the chains'
-current transitions via extracted from the collection of `states`.
+Temper the `model`'s density using the `k`th and `k + 1`th temperatures 
+selected via `Δ` and `chain_index`. Then retrieve the parameters using the chains'
+current transitions extracted from the collection of `states`.
 """
 function get_tempered_loglikelihoods_and_params(
     model,
@@ -25,14 +26,14 @@ function get_tempered_loglikelihoods_and_params(
     states,
     k::Integer,
     Δ::Vector{Real},
-    Δ_state::Vector{<:Integer}
+    chain_index::Vector{<:Integer}
 )
     
-    logπk = make_tempered_loglikelihood(model, Δ[Δ_state[k]])
-    logπkp1 = make_tempered_loglikelihood(model, Δ[Δ_state[k + 1]])
+    logπk = make_tempered_loglikelihood(model, Δ[k])
+    logπkp1 = make_tempered_loglikelihood(model, Δ[k + 1])
     
-    θk = get_params(states[k][1])
-    θkp1 = get_params(states[k + 1][1])
+    θk = get_params(states[chain_index[k]][1])
+    θkp1 = get_params(states[chain_index[k + 1]][1])
     
     return logπk, logπkp1, θk, θkp1
 end
@@ -55,21 +56,26 @@ end
 
 
 """
-    swap_attempt(model, sampler, states, k, Δ, Δ_state)
+    swap_attempt(model, sampler, states, k, Δ, Δ_index)
 
 Attempt to swap the temperatures of two chains by tempering the densities and
 calculating the swap acceptance ratio; then swapping if it is accepted.
 """
-function swap_attempt(model, sampler, states, k, Δ, Δ_state)
+function swap_attempt(model, sampler, ts, k, adapt, n)
     
-    logπk, logπkp1, θk, θkp1 = get_tempered_loglikelihoods_and_params(model, sampler, states, k, Δ, Δ_state)
+    logπk, logπkp1, θk, θkp1 = get_tempered_loglikelihoods_and_params(model, sampler, ts.states, k, ts.Δ, ts.chain_index)
     
-    A = swap_acceptance_pt(logπk, logπkp1, θk, θkp1)
+    swap_ar = swap_acceptance_pt(logπk, logπkp1, θk, θkp1)
     U = rand(Distributions.Uniform(0, 1))
-    # If the proposed temperature swap is accepted according to A and U, swap the temperatures for future steps
-    if U ≤ A
-        Δ_state = swap_βs(Δ_state, k)
+
+    # If the proposed temperature swap is accepted according to swap_ar and U, swap the temperatures for future steps
+    if U ≤ swap_ar
+        ts.Δ_index, ts.chain_index = swap_betas(ts.chain_index, k)
     end
 
-    return Δ_state
+    # Adaptation steps affects Ρ and Δ, as the Ρ is adapted before a new Δ is generated and returned
+    if adapt
+        ts.Ρ, ts.Δ = adapt_ladder(ts.Ρ, ts.Δ, k, swap_ar, n)
+    end
+    return ts
 end
