@@ -39,7 +39,8 @@ end
    `:standard` as in original proposed algorithm, a single randomly picked swap is proposed
    `:nonrev` alternate even/odd swaps as in Syed, Bouchard-Côté, Deligiannidis, Doucet, arXiv:1905.02939 such that a reverse swap cannot be made in immediate succession
    `:randperm` generates a permutation in order to swap in a random order
-- `Δ_init::Vector{<:Integer}` is a list containing the sequence of `1:length(Δ)` and determines the starting temperature of each chain
+- `Δ_init::Vector{<:Integer}` is a list containing a sequence including the integers `1:length(Δ)` and determines the starting temperature of each chain
+    i.e. [3, 1, 2, 4] across temperatures [1.0, 0.1, 0.01, 0.001] would mean the first chain starts at temperature 0.01, second starts at 1.0, etc.
 - `N_swap::Integer` steps are carried out between each tempering swap step attempt
 """
 function tempered(
@@ -65,11 +66,11 @@ function tempered(
     Δ_init::Vector{<:Integer} = collect(1:length(Δ)),
     N_swap::Integer = 1,
     adapt::Bool = true,
-    adapt_target::T = T(0.234),
-    adapt_scale::T = T(get_scaling_val(length(Δ), swap_strategy)),
-    adapt_step::T = T(0.66),
+    adapt_target::Real = 0.234,
+    adapt_scale::Real = get_scaling_val(length(Δ), swap_strategy),
+    adapt_step::Real = 0.66,
     kwargs...
-) where {T<:Real}
+)
     length(Δ) > 1 || error("More than one inverse temperatures must be provided.")
     N_swap >= 1 || error("This must be a positive integer.")
     Ρ = init_adaptation(Δ, adapt_target, adapt_scale, adapt_step)
