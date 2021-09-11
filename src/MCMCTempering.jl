@@ -4,12 +4,15 @@ import AbstractMCMC
 import Distributions
 import Random
 
+using ConcreteStructs: @concrete
+using Setfield: @set, @set!
+
 include("adaptation.jl")
+include("swapping.jl")
 include("tempered.jl")
 include("ladders.jl")
 include("stepping.jl")
 include("model.jl")
-include("swapping.jl")
 include("plotting.jl")
 
 export tempered, TemperedSampler, plot_swaps, plot_ladders, make_tempered_model, get_tempered_loglikelihoods_and_params, make_tempered_loglikelihood, get_params
