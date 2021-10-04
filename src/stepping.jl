@@ -66,7 +66,7 @@ function AbstractMCMC.step(
     states = [
         AbstractMCMC.step(
             rng,
-            make_tempered_model(model, spl.Δ[spl.Δ_init[i]]),
+            make_tempered_model(spl, model, spl.Δ[spl.Δ_init[i]]),
             spl.internal_sampler;
             init_params=init_params !== nothing ? init_params[i] : nothing,
             kwargs...
@@ -94,7 +94,7 @@ function AbstractMCMC.step(
         @set! ts.states = [
             AbstractMCMC.step(
                 rng,
-                make_tempered_model(model, ts.Δ[ts.Δ_index[i]]),
+                make_tempered_model(spl, model, ts.Δ[ts.Δ_index[i]]),
                 spl.internal_sampler,
                 ts.states[ts.chain_index[i]][2];
                 kwargs...
@@ -111,7 +111,7 @@ end
 
 
 """
-    swap_step([strategy::SwapStrategy, ]rng, model, spl, ts)
+    swap_step([strategy::AbstractSwapStrategy, ]rng, model, spl, ts)
 
 Uses the internals of the passed `TemperedSampler` - `spl` - and `TemperedState` -
 `ts` - to perform a "swap step" between temperatures, in accordance with the relevant
