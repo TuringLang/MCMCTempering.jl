@@ -1,34 +1,26 @@
+# Why these?
 """
     get_scaling_val(Nt, swap_strategy)
 
-Calculates the correct scaling factor for polynomial step size between temperatures
+Calculates the correct scaling factor for polynomial step size between temperatures.
 """
-function get_scaling_val(Nt, swap_strategy)
-    # Why these?
-    if swap_strategy == :standard
-        scaling_val = Nt - 1
-    elseif swap_strategy == :nonrev
-        scaling_val = 2
-    else
-        scaling_val = 1
-    end
-    return scaling_val
-end
-
+get_scaling_val(Nt, ::StandardSwap) = Nt - 1
+get_scaling_val(Nt, ::NonReversibleSwap) = 2
+get_scaling_val(Nt, ::RandomPermutationSwap) = 1
 
 """
     generate_Δ(Nt, swap_strategy)
 
 Returns a temperature ladder `Δ` containing `Nt` temperatures,
-generated in accordance with the chosen `swap_strategy`
+generated in accordance with the chosen `swap_strategy`.
 """
 function generate_Δ(Nt, swap_strategy)
     scaling_val = get_scaling_val(Nt, swap_strategy)
-    Δ = zeros(Real, Nt)
+    Δ = zeros(Nt)
     Δ[1] = 1.0
     β′ = Δ[1]
     for i ∈ 1:(Nt - 1)
-        β′ += exp(scaling_val)
+        β′ += scaling_val
         Δ[i + 1] = Δ[1] / β′
     end
     return Δ
