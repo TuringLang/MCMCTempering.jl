@@ -97,7 +97,7 @@ function AbstractMCMC.step(
                 rng,
                 make_tempered_model(spl, model, ts.Δ[ts.Δ_index[i]]),
                 spl.internal_sampler,
-                ts.states[ts.chain_index[i]][2];
+                ts.states[i][2];
                 kwargs...
             )
             for i in 1:length(ts.Δ)
