@@ -63,7 +63,7 @@ function AbstractMCMC.step(
     init_params=nothing,
     kwargs...
 )
-    states = [
+    transitions_and_states = [
         AbstractMCMC.step(
             rng,
             make_tempered_model(spl, model, spl.Δ[spl.Δ_init[i]]),
@@ -74,9 +74,10 @@ function AbstractMCMC.step(
         for i in 1:length(spl.Δ)
     ]
     return (
-        first(states[argmax(spl.Δ_init)]),
+        # Get the left-most `(transition, state)` pair, then get the `transition`.
+        first(first(transitions_and_states)),
         TemperedState(
-            states, spl.Δ, spl.Δ_init, sortperm(spl.Δ_init), 1, 1, spl.Ρ
+            transitions_and_states, spl.Δ, spl.Δ_init, sortperm(spl.Δ_init), 1, 1, spl.Ρ
         )
     )
 end
