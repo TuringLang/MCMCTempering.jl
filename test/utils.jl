@@ -13,12 +13,16 @@ AbstractMCMC.sample(model, sampler, N; callback=StateHistoryCallback(state_histo
 state_history
 ```
 """
-struct StateHistoryCallback{A}
+struct StateHistoryCallback{A,F}
     states::A
+    selector::F
 end
 StateHistoryCallback() = StateHistoryCallback(Any[])
+function StateHistoryCallback(states, selector=deepcopy)
+    return StateHistoryCallback{typeof(states), typeof(selector)}(states, selector)
+end
 
 function (cb::StateHistoryCallback)(rng, model, sampler, sample, state, i; kwargs...)
-    push!(cb.states, state)
+    push!(cb.states, cb.selector(state))
     return nothing
 end
