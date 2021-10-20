@@ -7,6 +7,8 @@ import Random
 using ConcreteStructs: @concrete
 using Setfield: @set, @set!
 
+using DocStringExtensions
+
 include("adaptation.jl")
 include("swapping.jl")
 include("tempered.jl")
