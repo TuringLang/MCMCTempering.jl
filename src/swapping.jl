@@ -39,9 +39,6 @@ struct RandomPermutationSwap <: AbstractSwapStrategy end
 At every swap step taken, this strategy _deterministically_ traverses first the
 odd chain indices, proposing swaps between neighbors, and then in the _next_ swap step
 taken traverses even chain indices, proposing swaps between neighbors.
-
-Note that this method is _not_ reversible, and does not satisfy detailed balance.
-As a result, this method is asymptotically biased.
 """
 struct NonReversibleSwap <: AbstractSwapStrategy end
 
