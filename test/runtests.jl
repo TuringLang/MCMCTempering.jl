@@ -16,12 +16,15 @@ include("compat.jl")
         nsamples = 20_000
         swap_every_n = 2
 
+        μ_true = [-1.0, 1.0]
+        σ_true = [1.0, √(10.0)]
+
         function logdensity(x)
-            logpdf(MvNormal(ones(length(x)), I), x)
+            logpdf(MvNormal(μ_true, Diagonal(σ_true.^2)), x)
         end
 
         # Sampler parameters.
-        Δ = MCMCTempering.check_Δ(vcat(0.25:0.1:0.9, 0.91:0.005:1.0))
+        Δ = MCMCTempering.check_Δ(0.5:0.01:1.0)
 
         # Construct a DensityModel.
         model = DensityModel(logdensity)
@@ -34,24 +37,22 @@ include("compat.jl")
             MCMCTempering.RandomPermutationSwap(),
             MCMCTempering.NonReversibleSwap()
         ]
-        @testset "$swapstrategy" for swapstrategy in swapstrategies
-            swapstrategy = MCMCTempering.NonReversibleSwap()
+
+        @testset "$(swapstrategy)" for swapstrategy in swapstrategies
             spl = tempered(spl_inner, Δ, swapstrategy; adapt=false, N_swap=swap_every_n)
 
-            # TODO: Remove or make use of.
-            # # Useful for analysis.
-            # states = []
-            # callback = StateHistoryCallback(states)
-            callback = (args...; kwargs...) -> nothing
+            # Useful for analysis.
+            states = []
+            callback = StateHistoryCallback(states)
 
             # Sample.
             samples = AbstractMCMC.sample(model, spl, nsamples; callback=callback, progress=false);
 
-            # # Extract the history of chain indices.
-            # Δ_index_history_list = map(states) do state
-            #     state.Δ_index
-            # end
-            # Δ_index_history = permutedims(reduce(hcat, Δ_index_history_list), (2, 1))
+            # Extract the history of chain indices.
+            process_to_chain_history_list = map(states) do state
+                state.process_to_chain
+            end
+            process_to_chain_history = permutedims(reduce(hcat, process_to_chain_history_list), (2, 1))
 
             # Get example state.
             state = states[end]
@@ -64,7 +65,9 @@ include("compat.jl")
             end;
 
             # Thin chain and discard burnin.
-            chain_thinned = chain[length(chain) ÷ 2 + 1:swap_every_n:end]
+            chain_thinned = chain[length(chain) ÷ 2 + 1:5swap_every_n:end]
+            show(stdout, MIME"text/plain"(), chain_thinned)
+
             # Extract some summary statistics to compare.
             desc = describe(chain_thinned)[1].nt
             μ = desc.mean
@@ -73,10 +76,10 @@ include("compat.jl")
             # HACK: These bounds are quite generous. We're swapping quite frequently here
             # so some of the strategies results in a rather large variance of the estimators
             # it seems.
-            @test norm(μ - ones(length(μ))) ≤ 2e-1
-            @test norm(σ - ones(length(σ))) ≤ 3e-1
-
-            # TODO: Add some tests so ensure that we are doing _some_ swapping?
+            show(stdout, MIME"text/plain"(), norm(μ - μ_true))
+            show(stdout, MIME"text/plain"(), norm(σ - σ_true))
+            @test norm(μ - μ_true) ≤ 0.5
+            @test norm(σ - σ_true) ≤ 0.5
         end
     end
 end
