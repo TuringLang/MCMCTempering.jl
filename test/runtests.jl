@@ -76,8 +76,6 @@ include("compat.jl")
             # HACK: These bounds are quite generous. We're swapping quite frequently here
             # so some of the strategies results in a rather large variance of the estimators
             # it seems.
-            show(stdout, MIME"text/plain"(), norm(μ - μ_true))
-            show(stdout, MIME"text/plain"(), norm(σ - σ_true))
             @test norm(μ - μ_true) ≤ 0.5
             @test norm(σ - σ_true) ≤ 0.5
         end
