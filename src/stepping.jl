@@ -2,8 +2,8 @@
     mutable struct TemperedState
         transitions_and_states          :: Array{Any}
         Δ               :: Vector{<:Real}
-        Δ_index         :: Vector{<:Integer}
-        chain_index     :: Vector{<:Integer}
+        chain_to_process         :: Vector{<:Integer}
+        process_to_chain     :: Vector{<:Integer}
         step_counter    :: Integer
         total_steps     :: Integer
         Ρ               :: Vector{AdaptiveState}
@@ -14,33 +14,33 @@ used throughout parallel tempering as pairs of `Transition`s and `VarInfo`s,
 it also stores necessary information for tempering:
 - `transitions_and_states` is a collection of `(transition, state)` pairs, one for each tempered chain.
 - `Δ` contains the ordered sequence of inverse temperatures.
-- `Δ_index` contains the current ordering to apply the temperatures to each chain, tracking swaps,
-    i.e., contains the index `Δ_index[i] = j` of the temperature in `Δ`, `Δ[j]`, to apply to chain `i`
-- `chain_index` contains the index `chain_index[i] = k` of the chain tempered by `Δ[i]`
-    NOTE that to convert between this and `Δ_index` we simply use the `sortperm()` function
+- `chain_to_process` contains the current ordering to apply the temperatures to each chain, tracking swaps,
+    i.e., contains the index `chain_to_process[i] = j` of the temperature in `Δ`, `Δ[j]`, to apply to chain `i`
+- `process_to_chain` contains the index `process_to_chain[i] = k` of the chain tempered by `Δ[i]`
+    NOTE that to convert between this and `chain_to_process` we simply use the `sortperm()` function
 - `step_counter` maintains the number of steps taken since the last swap attempt
 - `total_steps` maintains the count of the total number of steps taken
 - `Ρ` contains all of the information required for adaptation of Δ
 
-Example of swaps across 4 chains and the values of `chain_index` and `Δ_index`:
+Example of swaps across 4 chains and the values of `process_to_chain` and `chain_to_process`:
 
-Chains:        chain_index:     Δ_index:
-| | | |        1  2  3  4       1  2  3  4
+Chains:      process_to_chain:     chain_to_process:
+| | | |        1  2  3  4            1  2  3  4
 | | | |    
- V  | |        2  1  3  4       2  1  3  4
+ V  | |        2  1  3  4            2  1  3  4
  Λ  | |    
-| | | |        2  1  3  4       2  1  3  4
+| | | |        2  1  3  4            2  1  3  4
 | | | |    
-|  V  |        2  3  1  4       3  1  2  4
+|  V  |        2  3  1  4            3  1  2  4
 |  Λ  |    
-| | | |        2  3  1  4       3  1  2  4
+| | | |        2  3  1  4            3  1  2  4
 | | | |  
 """
 @concrete struct TemperedState
     transitions_and_states
     Δ
-    Δ_index
-    chain_index
+    chain_to_process
+    process_to_chain
     step_counter
     total_steps
     Ρ
@@ -53,7 +53,7 @@ Return the transition corresponding to the chain indexed by `I...`.
 If `I...` is not specified, the transition corresponding to `β=1.0` will be returned, i.e. `I = (1, )`.
 """
 transition_for_chain(state::TemperedState) = transition_for_chain(state, 1)
-transition_for_chain(state::TemperedState, I...) = state.transitions_and_states[state.Δ_index[I...]][1]
+transition_for_chain(state::TemperedState, I...) = state.transitions_and_states[state.chain_to_process[I...]][1]
 
 """
     transition_for_process(state, I...)
@@ -85,7 +85,7 @@ Return the β corresponding to the chain indexed by `I...`.
 If `I...` is not specified, the β corresponding to `β=1.0` will be returned.
 """
 β_for_chain(state::TemperedState) = β_for_chain(state, 1)
-β_for_chain(state::TemperedState, I...) = state.Δ[state.Δ_index[I...]]
+β_for_chain(state::TemperedState, I...) = state.Δ[state.chain_to_process[I...]]
 
 """
     β_for_process(state, I...)
@@ -102,7 +102,7 @@ If `I...` is not specified, the sampler corresponding to `β=1.0` will be return
 """
 sampler_for_chain(sampler::TemperedSampler, state::TemperedState) = sampler_for_chain(sampler, state, 1)
 function sampler_for_chain(sampler::TemperedSampler, state::TemperedState, I...)
-    return getsampler(sampler.internal_sampler, state.Δ_index[I...])
+    return getsampler(sampler.internal_sampler, state.chain_to_process[I...])
 end
 
 """

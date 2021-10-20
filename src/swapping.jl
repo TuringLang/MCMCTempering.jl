@@ -43,14 +43,24 @@ taken traverses even chain indices, proposing swaps between neighbors.
 struct NonReversibleSwap <: AbstractSwapStrategy end
 
 """
-    swap_betas(chain_index, k)
+    swap_betas!(chain_to_process, process_to_chain, k)
 
 Swaps the `k`th and `k + 1`th temperatures.
-Use `sortperm()` to convert the `chain_index` to a `Δ_index` to be used in tempering moves.
 """
-function swap_betas(chain_index, Δ_index, k)
-    chain_index[k], chain_index[k + 1] = chain_index[k + 1], chain_index[k]
-    return sortperm(chain_index), chain_index
+function swap_betas!(chain_to_process, process_to_chain, k)
+    # TODO: Use BangBang's `@set!!` to also support tuples?
+    # Extract the process index for each of the chains.
+    process_for_chain_k, process_for_chain_kp1 = chain_to_process[k], chain_to_process[k + 1]
+
+    # Switch the mapping of the `chain → process` map.
+    # The temperature for the k-th chain will now be moved from its current process
+    # to the process for the (k + 1)-th chain, and vice versa.
+    chain_to_process[k], chain_to_process[k + 1] = process_for_chain_kp1, process_for_chain_k
+
+    # Swap the mapping of the `process → chain` map.
+    # The process that used to have the k-th chain, now has the (k+1)-th chain, and vice versa.
+    process_to_chain[process_for_chain_k], process_to_chain[process_for_chain_kp1] = k + 1, k
+    return chain_to_process, process_to_chain
 end
 
 
@@ -98,9 +108,7 @@ function swap_attempt(rng, model, sampler, state, k, adapt, total_steps)
     # swap the temperatures for future steps.
     logα = swap_acceptance_pt(logπk_θk, logπk_θkp1, logπkp1_θk, logπkp1_θkp1)
     if -Random.randexp(rng) ≤ logα
-        Δ_index, chain_index = swap_betas(state.chain_index, state.Δ_index, k)
-        @set! state.Δ_index = Δ_index
-        @set! state.chain_index = chain_index
+        swap_betas!(state.chain_to_process, state.process_to_chain, k)
     end
 
     # Adaptation steps affects Ρ and Δ, as the Ρ is adapted before a new Δ is generated and returned
