@@ -25,7 +25,10 @@ function AbstractMCMC.bundle_samples(
     chain_type::Type;
     kwargs...
 )
-    AbstractMCMC.bundle_samples(ts, model, sampler.internal_sampler, state, chain_type; kwargs...)
+    AbstractMCMC.bundle_samples(
+        ts, model, sampler_for_chain(sampler, state), state_for_chain(state), chain_type;
+        kwargs...
+    )
 end
 
 end

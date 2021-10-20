@@ -25,6 +25,17 @@ end
 
 swapstrategy(sampler::TemperedSampler) = sampler.swap_strategy
 
+getsampler(samplers, I...) = getindex(samplers, I...)
+getsampler(sampler::AbstractMCMC.AbstractSampler, I...) = sampler
+getsampler(sampler::TemperedSampler, I...) = getsampler(sampler.internal_sampler, I...)
+
+"""
+    numsteps(sampler::TemperedSampler)
+
+Return number of temperatures used by `sampler`.
+"""
+numtemps(sampler::TemperedSampler) = length(sampler.Δ)
+
 
 """
     tempered(internal_sampler, Δ; kwargs...)

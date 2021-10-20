@@ -51,7 +51,7 @@ struct NonReversibleSwap <: AbstractSwapStrategy end
 Swaps the `k`th and `k + 1`th temperatures.
 Use `sortperm()` to convert the `chain_index` to a `Δ_index` to be used in tempering moves.
 """
-function swap_betas(chain_index, k)
+function swap_betas(chain_index, Δ_index, k)
     chain_index[k], chain_index[k + 1] = chain_index[k + 1], chain_index[k]
     return sortperm(chain_index), chain_index
 end
@@ -78,37 +78,39 @@ end
 
 
 """
-    swap_attempt(model, sampler, states, k, Δ, Δ_index)
+    swap_attempt(rng, model, sampler, state, k, adapt)
 
 Attempt to swap the temperatures of two chains by tempering the densities and
 calculating the swap acceptance ratio; then swapping if it is accepted.
 """
-function swap_attempt(rng, model, sampler, ts, k, adapt, n)
+function swap_attempt(rng, model, sampler, state, k, adapt, total_steps)
     # Extract the relevant transitions.
-    transitionk = first(ts.states[ts.chain_index[k]])
-    transitionkp1 = first(ts.states[ts.chain_index[k + 1]])
+    transitionk = transition_for_chain(state, k)
+    transitionkp1 = transition_for_chain(state, k + 1)
     # Evaluate logdensity for both parameters for each tempered density.
+    # NOTE: Here we want to propose swaps between the neighboring _chains_ not processes,
+    # and so we get the `β` and `sampler` corresponding to the k-th and (k+1)-th chains.
     logπk_θk, logπk_θkp1 = compute_tempered_logdensities(
-        model, sampler, transitionk, transitionkp1, ts.Δ[k]
+        model, sampler_for_chain(sampler, state, k), transitionk, transitionkp1, β_for_chain(state, k)
     )
     logπkp1_θkp1, logπkp1_θk = compute_tempered_logdensities(
-        model, sampler, transitionkp1, transitionk, ts.Δ[k + 1]
+        model, sampler_for_chain(sampler, state, k + 1), transitionkp1, transitionk, β_for_chain(state, k + 1)
     )
     
     # If the proposed temperature swap is accepted according `logα`,
     # swap the temperatures for future steps.
     logα = swap_acceptance_pt(logπk_θk, logπk_θkp1, logπkp1_θk, logπkp1_θkp1)
     if -Random.randexp(rng) ≤ logα
-        Δ_index, chain_index = swap_betas(ts.chain_index, k)
-        @set! ts.Δ_index = Δ_index
-        @set! ts.chain_index = chain_index
+        Δ_index, chain_index = swap_betas(state.chain_index, state.Δ_index, k)
+        @set! state.Δ_index = Δ_index
+        @set! state.chain_index = chain_index
     end
 
     # Adaptation steps affects Ρ and Δ, as the Ρ is adapted before a new Δ is generated and returned
     if adapt
-        P, Δ = adapt_ladder(ts.Ρ, ts.Δ, k, min(one(logα), exp(logα)), n)
-        @set! ts.Ρ = P
-        @set! ts.Δ = Δ
+        P, Δ = adapt_ladder(state.Ρ, state.Δ, k, min(one(logα), exp(logα)), total_steps)
+        @set! state.Ρ = P
+        @set! state.Δ = Δ
     end
-    return ts
+    return state
 end
