@@ -144,6 +144,15 @@ function sampler_for_process(sampler::TemperedSampler, state::TemperedState, I..
     return getsampler(sampler.sampler, I...)
 end
 
+"""
+    should_swap(sampler, state)
+
+Return `true` if a swap should happen at this iteration, and `false` otherwise.
+"""
+function should_swap(sampler::TemperedSampler, state::TemperedState)
+    return state.total_steps % sampler.swap_every == 0
+end
+
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
@@ -161,7 +170,7 @@ function AbstractMCMC.step(
     transitions_and_states = [
         AbstractMCMC.step(
             rng,
-            make_tempered_model(sampler, model, sampler.inverse_temperatures),
+            make_tempered_model(sampler, model, sampler.inverse_temperatures[i]),
             getsampler(sampler, i);
             init_params=init_params !== nothing ? init_params[i] : nothing,
             kwargs...
@@ -169,19 +178,22 @@ function AbstractMCMC.step(
         for i in 1:numtemps(sampler)
     ]
 
-    process_to_chain = 1:length(sampler.inverse_temperatures)
+    # Make sure to collect, because we'll be using `setindex!(!)` later.
+    process_to_chain = collect(1:length(sampler.inverse_temperatures))
+    # Need to `copy` because this might be mutated.
+    chain_to_process = copy(process_to_chain)
     state = TemperedState(
         transitions_and_states,
         sampler.inverse_temperatures,
         process_to_chain,
-        process_to_chain,
-        1,
+        chain_to_process,
         1,
         sampler.Ρ
     )
 
     return transition_for_chain(state), state
 end
+
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
@@ -189,7 +201,7 @@ function AbstractMCMC.step(
     state::TemperedState;
     kwargs...
 )
-    if sampler.swap_every % state.total_steps == 0
+    if should_swap(sampler, state)
         state = swap_step(rng, model, sampler, state)
     else
         # `TemperedState` has the transitions and states in the order of
@@ -281,6 +293,9 @@ function swap_step(
 
     # Iterate through all levels and attempt swaps.
     for k in levels
+        # TODO: For this swapping strategy, we should really be using the adaptation from Syed et. al. (2019),
+        # but with the current one: shouldn't we at least divide `state.total_steps` by 2 since it will
+        # take use two swap-attempts before we have tried swapping all of them (in expectation).
         state = swap_attempt(rng, model, sampler, state, k, sampler.adapt, state.total_steps)
     end
     return state
