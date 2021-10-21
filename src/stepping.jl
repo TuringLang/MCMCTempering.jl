@@ -47,6 +47,7 @@ Chains:      process_to_chain      chain_to_process     Δ[process_to_chain[i]]
 |  Λ  |
 | | | |         2  3  1  4            3  1  2  4        0.75  0.50  1.00  0.25
 | | | |
+```
 
 In this case, the chain `X` can be reconstructed as:
 
@@ -59,8 +60,6 @@ X[5] = states[5].transitions_and_states[3]
 ```
 
 The indices here are exactly those represented by `states[k].chain_to_process[1]`.
-
-```
 """
 @concrete struct TemperedState
     "collection of `(transition, state)` pairs for each process"
