@@ -24,7 +24,7 @@ include("compat.jl")
         end
 
         # Sampler parameters.
-        Δ = MCMCTempering.check_Δ(0.5:0.01:1.0)
+        Δ = MCMCTempering.check_inverse_temperatures(0.5:0.01:1.0)
 
         # Construct a DensityModel.
         model = DensityModel(logdensity)

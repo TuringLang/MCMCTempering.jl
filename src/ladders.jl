@@ -1,4 +1,3 @@
-# Why these?
 """
     get_scaling_val(Nt, swap_strategy)
 
@@ -9,12 +8,12 @@ get_scaling_val(Nt, ::NonReversibleSwap) = 2
 get_scaling_val(Nt, ::RandomPermutationSwap) = 1
 
 """
-    generate_Δ(Nt, swap_strategy)
+    generate_inverse_temperatures(Nt, swap_strategy)
 
 Returns a temperature ladder `Δ` containing `Nt` temperatures,
 generated in accordance with the chosen `swap_strategy`.
 """
-function generate_Δ(Nt, swap_strategy)
+function generate_inverse_temperatures(Nt, swap_strategy)
     scaling_val = get_scaling_val(Nt, swap_strategy)
     Δ = zeros(Nt)
     Δ[1] = 1.0
@@ -28,11 +27,11 @@ end
 
 
 """
-    check_Δ(Δ)
+    check_inverse_temperatures(Δ)
 
 Checks and returns a sorted `Δ` containing `{β₀, ..., βₙ}` conforming such that `1 = β₀ > β₁ > ... > βₙ ≥ 0`
 """
-function check_Δ(Δ)
+function check_inverse_temperatures(Δ)
     if !all(zero.(Δ) .≤ Δ .≤ one.(Δ))
         error("Temperature schedule provided has values outside of the acceptable range, ensure all values are in [0, 1].")
     end

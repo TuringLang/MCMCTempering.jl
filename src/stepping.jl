@@ -18,7 +18,7 @@ Moreover, suppose we also have 4 workers/processes for which we run these chains
 
 When can then perform a swap in two different ways:
 1. Swap the the _states_ between each process, i.e. permute `transitions_and_states`.
-2. Swap the _temperatures_ between each process, i.e. permute `Δ`.
+2. Swap the _temperatures_ between each process, i.e. permute `inverse_temperatures`.
 
 (1) is possibly the most intuitive approach since it means that the i-th worker/process
 corresponds to the i-th chain; in this case, process 1 corresponds to `X`, process 2 to `Y`, etc.
@@ -36,16 +36,16 @@ The current implementation follows approach (2).
 Here's an example realization of using five steps of sampling and swap-attempts:
 
 ```
-Chains:      process_to_chain      chain_to_process     Δ[process_to_chain[i]]
-| | | |         1  2  3  4            1  2  3  4        1.00  0.75  0.50  0.25
+Chains:    process_to_chain    chain_to_process   inverse_temperatures[process_to_chain[i]]
+| | | |       1  2  3  4          1  2  3  4             1.00  0.75  0.50  0.25
 | | | |
- V  | |         2  1  3  4            2  1  3  4        0.75  1.00  0.50  0.25
+ V  | |       2  1  3  4          2  1  3  4             0.75  1.00  0.50  0.25
  Λ  | |
-| | | |         2  1  3  4            2  1  3  4        0.75  1.00  0.50  0.25
+| | | |       2  1  3  4          2  1  3  4             0.75  1.00  0.50  0.25
 | | | |
-|  V  |         2  3  1  4            3  1  2  4        0.75  0.50  1.00  0.25
+|  V  |       2  3  1  4          3  1  2  4             0.75  0.50  1.00  0.25
 |  Λ  |
-| | | |         2  3  1  4            3  1  2  4        0.75  0.50  1.00  0.25
+| | | |       2  3  1  4          3  1  2  4             0.75  0.50  1.00  0.25
 | | | |
 ```
 
@@ -65,17 +65,14 @@ The indices here are exactly those represented by `states[k].chain_to_process[1]
     "collection of `(transition, state)` pairs for each process"
     transitions_and_states
     "collection of (inverse) temperatures β corresponding to each process"
-    Δ
+    inverse_temperatures
     "collection indices such that `chain_to_process[i] = j` if the j-th process corresponds to the i-th chain"
     chain_to_process
     "collection indices such that `process_chain_to[j] = i` if the i-th chain corresponds to the j-th process"
     process_to_chain
-    # TODO: Remove this and just introduce a `RepeatedSampler` or something.
-    "keeps track of the number of since the last attempted swap"
-    step_counter
     "total number of steps taken"
     total_steps
-    "contains all necessary information for adaptation of Δ"
+    "contains all necessary information for adaptation of inverse_temperatures"
     Ρ
 end
 
@@ -118,14 +115,14 @@ Return the β corresponding to the chain indexed by `I...`.
 If `I...` is not specified, the β corresponding to `β=1.0` will be returned.
 """
 β_for_chain(state::TemperedState) = β_for_chain(state, 1)
-β_for_chain(state::TemperedState, I...) = state.Δ[state.chain_to_process[I...]]
+β_for_chain(state::TemperedState, I...) = state.inverse_temperatures[state.chain_to_process[I...]]
 
 """
     β_for_process(state, I...)
 
 Return the β corresponding to the process indexed by `I...`.
 """
-β_for_process(state::TemperedState, I...) = state.Δ[I...]
+β_for_process(state::TemperedState, I...) = state.inverse_temperatures[I...]
 
 """
     sampler_for_chain(sampler::TemperedSampler, state::TemperedState[, I...])
@@ -135,7 +132,7 @@ If `I...` is not specified, the sampler corresponding to `β=1.0` will be return
 """
 sampler_for_chain(sampler::TemperedSampler, state::TemperedState) = sampler_for_chain(sampler, state, 1)
 function sampler_for_chain(sampler::TemperedSampler, state::TemperedState, I...)
-    return getsampler(sampler.internal_sampler, state.chain_to_process[I...])
+    return getsampler(sampler.sampler, state.chain_to_process[I...])
 end
 
 """
@@ -144,18 +141,13 @@ end
 Return the sampler corresponding to the process indexed by `I...`.
 """
 function sampler_for_process(sampler::TemperedSampler, state::TemperedState, I...)
-    return getsampler(sampler.internal_sampler, I...)
+    return getsampler(sampler.sampler, I...)
 end
 
-"""
-For each `β` in `Δ`, carry out a step with a tempered model at the corresponding `β` inverse temperature,
-resulting in a list of transitions and states, the transition associated with `β₀ = 1` is then returned with the
-rest of the information being stored in the state.
-"""
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
-    spl::TemperedSampler;
+    sampler::TemperedSampler;
     init_params=nothing,
     kwargs...
 )
@@ -169,19 +161,23 @@ function AbstractMCMC.step(
     transitions_and_states = [
         AbstractMCMC.step(
             rng,
-            # TODO: Should we also have one a `β_for_process` for the sampler to
-            # cover the initial step? Do we even _need_ this `Δ_init[1]`?
-            # Can we not just assume that the `Δ` is always in the "correct" initial order?
-            make_tempered_model(spl, model, spl.Δ[spl.Δ_init[i]]),
-            getsampler(spl, i);
+            make_tempered_model(sampler, model, sampler.inverse_temperatures),
+            getsampler(sampler, i);
             init_params=init_params !== nothing ? init_params[i] : nothing,
             kwargs...
         )
-        for i in 1:numtemps(spl)
+        for i in 1:numtemps(sampler)
     ]
 
+    process_to_chain = 1:length(sampler.inverse_temperatures)
     state = TemperedState(
-        transitions_and_states, spl.Δ, copy(spl.Δ_init), sortperm(spl.Δ_init), 1, 1, spl.Ρ
+        transitions_and_states,
+        sampler.inverse_temperatures,
+        process_to_chain,
+        process_to_chain,
+        1,
+        1,
+        sampler.Ρ
     )
 
     return transition_for_chain(state), state
@@ -189,13 +185,12 @@ end
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
-    spl::TemperedSampler,
+    sampler::TemperedSampler,
     state::TemperedState;
     kwargs...
 )
-    if state.step_counter == spl.N_swap
-        state = swap_step(rng, model, spl, state)
-        @set! state.step_counter = 0
+    if sampler.swap_every % state.total_steps == 0
+        state = swap_step(rng, model, sampler, state)
     else
         # `TemperedState` has the transitions and states in the order of
         # the processes, and performs swaps by moving the (inverse) temperatures
@@ -207,14 +202,13 @@ function AbstractMCMC.step(
         @set! state.transitions_and_states = [
             AbstractMCMC.step(
                 rng,
-                make_tempered_model(spl, model, β_for_process(state, i)),
-                sampler_for_process(spl, state, i),
+                make_tempered_model(sampler, model, β_for_process(state, i)),
+                sampler_for_process(sampler, state, i),
                 state_for_process(state, i);
                 kwargs...
             )
-            for i in 1:numtemps(spl)
+            for i in 1:numtemps(sampler)
         ]
-        @set! state.step_counter += 1
     end
 
     @set! state.total_steps += 1
@@ -224,11 +218,12 @@ end
 
 
 """
-    swap_step([strategy::AbstractSwapStrategy, ]rng, model, spl, state)
+    swap_step([strategy::AbstractSwapStrategy, ]rng, model, sampler, state)
 
-Uses the internals of the passed `TemperedSampler` - `spl` - and `TemperedState` -
-`state` - to perform a "swap step" between temperatures, in accordance with the relevant
-swap strategy.
+Return new `state`, now with temperatures swapped according to `strategy`.
+
+If no `strategy` is provided, the return-value of [`swapstrategy`](@ref) called on `sampler`
+is used.
 """
 function swap_step(
     rng::Random.AbstractRNG,
@@ -246,7 +241,7 @@ function swap_step(
     sampler::TemperedSampler,
     state::TemperedState
 )
-    L = length(state.Δ) - 1
+    L = numtemps(sampler) - 1
     k = rand(rng, 1:L)
     return swap_attempt(rng, model, sampler, state, k, sampler.adapt, state.total_steps / L)
 end
@@ -278,7 +273,7 @@ function swap_step(
 )
     L = numtemps(sampler) - 1
     # Alternate between swapping odds and evens.
-    levels = if state.total_steps % (2 * sampler.N_swap) == 0
+    levels = if state.total_steps % (2 * sampler.swap_every) == 0
         1:2:L
     else
         2:2:L

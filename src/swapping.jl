@@ -15,8 +15,6 @@ a swap between chains `i` and `i + 1`.
 
 This approach goes under a number of names, e.g. Parallel Tempering (PT) MCMC and Replica-Exchange MCMC.[^PTPH05]
 
-The sampling of the chain index ensures reversibility/detailed balance is satisfied.
-
 # References
 [^PTPH05]: Earl, D. J., & Deem, M. W., Parallel tempering: theory, applications, and new perspectives, Physical Chemistry Chemical Physics, 7(23), 3910–3916 (2005).
 """
@@ -27,8 +25,6 @@ struct StandardSwap <: AbstractSwapStrategy end
 
 At every swap step taken, this strategy randomly shuffles all the chain indices
 and then iterates through them, proposing swaps for neighboring chains.
-
-The shuffling of chain indices ensures reversibility/detailed balance is satisfied.
 """
 struct RandomPermutationSwap <: AbstractSwapStrategy end
 
@@ -39,13 +35,18 @@ struct RandomPermutationSwap <: AbstractSwapStrategy end
 At every swap step taken, this strategy _deterministically_ traverses first the
 odd chain indices, proposing swaps between neighbors, and then in the _next_ swap step
 taken traverses even chain indices, proposing swaps between neighbors.
+
+See [^SYED19] for more on this approach.
+
+# References
+[^SYED19]: Syed, S., Bouchard-Côté, Alexandre, Deligiannidis, G., & Doucet, A., Non-reversible Parallel Tempering: A Scalable Highly Parallel MCMC Scheme, arXiv:1905.02939,  (2019).
 """
 struct NonReversibleSwap <: AbstractSwapStrategy end
 
 """
     swap_betas!(chain_to_process, process_to_chain, k)
 
-Swaps the `k`th and `k + 1`th temperatures.
+Swaps the `k`th and `k + 1`th temperatures in place.
 """
 function swap_betas!(chain_to_process, process_to_chain, k)
     # TODO: Use BangBang's `@set!!` to also support tuples?
@@ -111,11 +112,14 @@ function swap_attempt(rng, model, sampler, state, k, adapt, total_steps)
         swap_betas!(state.chain_to_process, state.process_to_chain, k)
     end
 
-    # Adaptation steps affects Ρ and Δ, as the Ρ is adapted before a new Δ is generated and returned
+    # Adaptation steps affects `Ρ` and `inverse_temperatures`, as the `Ρ` is
+    # adapted before a new `inverse_temperatures` is generated and returned.
     if adapt
-        P, Δ = adapt_ladder(state.Ρ, state.Δ, k, min(one(logα), exp(logα)), total_steps)
+        P, inverse_temperatures = adapt_ladder(
+            state.Ρ, state.inverse_temperatures, k, min(one(logα), exp(logα)), total_steps
+        )
         @set! state.Ρ = P
-        @set! state.Δ = Δ
+        @set! state.inverse_temperatures = inverse_temperatures
     end
     return state
 end
