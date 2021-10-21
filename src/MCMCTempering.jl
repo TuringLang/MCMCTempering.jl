@@ -15,9 +15,13 @@ include("tempered.jl")
 include("ladders.jl")
 include("stepping.jl")
 include("model.jl")
-include("plotting.jl")
 
-export tempered, TemperedSampler, plot_swaps, plot_ladders, make_tempered_model, get_tempered_loglikelihoods_and_params, make_tempered_loglikelihood, get_params
+export tempered,
+    TemperedSampler,
+    make_tempered_model,
+    StandardSwap,
+    RandomPermutationSwap,
+    NonReversibleSwap
 
 function AbstractMCMC.bundle_samples(
     ts::Vector,
