@@ -5,7 +5,7 @@ MCMCTempering.jl implements simulated and parallel tempering, two methods for sa
 
 ## Tutorial: Using MCMCTempering
 
-`MCMCTempering` stores temperature scheduling information in a special kind of `sampler`. We can temper a sampler by calling the `tempered` function on any `sampler` that supports `MCMCTempering`, which includes all the samplers in `AdvancedHMC` and `AdvancedMH`. (Note that `AdvancedSMC` already uses tempering, so there's no need to try combining it with `MCMCTempering`.) Here's an example:
+`MCMCTempering` stores temperature scheduling information in a special kind of `sampler`. We can temper a sampler by calling the `tempered` function on any `sampler` that supports `MCMCTempering`, which includes all the samplers in `AdvancedHMC` and `AdvancedMH`. Here's an example:
 
 ```julia
 using MCMCTempering
