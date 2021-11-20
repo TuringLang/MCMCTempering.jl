@@ -1,7 +1,7 @@
 """
     StateHistoryCallback
 
-Defines a callable which simply pushes the `state` onto the `states` container.!
+Defines a callable which pushes the `state` onto the `states` container.
 
 Example usage when used with AbstractMCMC.jl:
 ```julia
