@@ -3,7 +3,7 @@
 
 Return an instance representing a model.
 
-The return-type depends on it's usage in [`compute_tempered_logdensities`](@ref).
+The return-type depends on its usage in [`compute_tempered_logdensities`](@ref).
 """
 function make_tempered_model end
 
