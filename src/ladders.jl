@@ -14,13 +14,15 @@ Returns a temperature ladder `Δ` containing `Nt` temperatures,
 generated in accordance with the chosen `swap_strategy`.
 """
 function generate_inverse_temperatures(Nt, swap_strategy)
+    # Apparently, here we increase the temperature by a constant
+    # factor which depends on `swap_strategy`.
     scaling_val = get_scaling_val(Nt, swap_strategy)
-    Δ = zeros(Nt)
-    Δ[1] = 1.0
-    β′ = Δ[1]
-    for i ∈ 1:(Nt - 1)
-        β′ += scaling_val
-        Δ[i + 1] = Δ[1] / β′
+    Δ = Vector{Float64}(undef, Nt)
+    Δ[1] = 1
+    T = Δ[1]
+    for i in 1:(Nt - 1)
+        T += scaling_val
+        Δ[i + 1] = inv(T)
     end
     return Δ
 end

@@ -20,7 +20,7 @@ $(FIELDS)
     "boolean flag specifying whether or not to adapt"
     adapt
     "adaptation parameters"
-    Ρ
+    adaptation_states
 end
 
 swapstrategy(sampler::TemperedSampler) = sampler.swap_strategy
@@ -79,13 +79,13 @@ function tempered(
     swap_every::Integer = 1,
     adapt::Bool = true,
     adapt_target::Real = 0.234,
-    adapt_scale::Real = get_scaling_val(length(inverse_temperatures), swap_strategy),
+    adapt_scale::Real = √2,
     adapt_step::Real = 0.66,
     kwargs...
 )
     inverse_temperatures = check_inverse_temperatures(inverse_temperatures)
     length(inverse_temperatures) > 1 || error("More than one inverse temperatures must be provided.")
     swap_every >= 1 || error("This must be a positive integer.")
-    Ρ = init_adaptation(inverse_temperatures, adapt_target, adapt_scale, adapt_step)
-    return TemperedSampler(sampler, inverse_temperatures, swap_every, swap_strategy, adapt, Ρ)
+    adaptation_states = init_adaptation(inverse_temperatures, adapt_target, inv(adapt_scale), adapt_step)
+    return TemperedSampler(sampler, inverse_temperatures, swap_every, swap_strategy, adapt, adaptation_states)
 end
