@@ -8,14 +8,39 @@ function get(step::PolynomialStep, k::Real)
     return step.c * (k + 1) ^ (-step.η)
 end
 
-struct AdaptiveState{T1<:Real,T2<:Real,P<:PolynomialStep}
+"""
+    Geometric
+
+Specifies a geometric schedule for the inverse temperatures.
+
+See also: [`AdaptiveState`](@ref), [`update_inverse_temperatures`](@ref), and
+[`weight`](@ref).
+"""
+struct Geometric end
+
+"""
+    InverselyAdditive
+
+Specifies an additive schedule for the temperatures (not _inverse_ temperatures).
+
+See also: [`AdaptiveState`](@ref), [`update_inverse_temperatures`](@ref), and
+[`weight`](@ref).
+"""
+struct InverselyAdditive end
+
+struct AdaptiveState{S,T1<:Real,T2<:Real,P<:PolynomialStep}
+    schedule_type::S
     swap_target_ar::T1
     scale_unconstrained::T2
     step::P
 end
 
+function AdaptiveState(swap_target_ar, scale_unconstrained, step)
+    return AdaptiveState(InverselyAdditive(), swap_target_ar, scale_unconstrained, step)
+end
+
 """
-    weight(ρ::AdaptiveState)
+    weight(ρ::AdaptiveState{<:Geometric})
 
 Return the weight/scale to be used in the mapping `β[ℓ] ↦ β[ℓ + 1]`.
 
@@ -32,12 +57,23 @@ because we want `w(ρ) ∈ (0, 1)` while `ρ ∈ ℝ`. As an alternative, we use
 `StatsFuns.logistic(ρ)` which is numerically more stable than `exp(-exp(ρ))` and
 leads to less extreme values, i.e. 0 or 1.
 
+This the same approach as mentioned in [^ATCH11].
+
 # References
-[^MIAS12] Miasojedow, B., Moulines, E., & Vihola, M., Adaptive Parallel Tempering Algorithm, (2012).
+[^MIAS12]: Miasojedow, B., Moulines, E., & Vihola, M., Adaptive Parallel Tempering Algorithm, (2012).
+[^ATCH11]: Atchade, Yves F, Roberts, G. O., & Rosenthal, J. S., Towards optimal scaling of metropolis-coupled markov chain monte carlo, Statistics and Computing, 21(4), 555–568 (2011).
 """
-weight(ρ::AdaptiveState) = StatsFuns.logistic(ρ.scale_unconstrained)
+weight(ρ::AdaptiveState{<:Geometric}) = StatsFuns.logistic(ρ.scale_unconstrained)
+
+"""
+    weight(ρ::AdaptiveState{<:InverselyAdditive})
+
+Return the weight/scale to be used in the mapping `β[ℓ] ↦ β[ℓ + 1]`.
+"""
+weight(ρ::AdaptiveState{<:InverselyAdditive}) = exp(ρ.scale_unconstrained)
 
 function init_adaptation(
+    schedule::InverselyAdditive,
     Δ::Vector{<:Real},
     swap_target::Real,
     scale::Real,
@@ -46,7 +82,25 @@ function init_adaptation(
     Nt = length(Δ)
     step = PolynomialStep(γ, Nt - 1)
     ρs = [
-        AdaptiveState(swap_target, StatsFuns.logit(scale), step)
+        AdaptiveState(schedule, swap_target, log(scale), step)
+        for _ in 1:(Nt - 1)
+    ]
+    return ρs
+end
+
+function init_adaptation(
+    schedule::Geometric,
+    Δ::Vector{<:Real},
+    swap_target::Real,
+    scale::Real,
+    γ::Real
+)
+    Nt = length(Δ)
+    step = PolynomialStep(γ, Nt - 1)
+    ρs = [
+        # TODO: Figure out a good way to make use of the `scale` here
+        # rather than a default value of `√2`.
+        AdaptiveState(schedule, swap_target, StatsFuns.logit(inv(√2)), step)
         for _ in 1:(Nt - 1)
     ]
     return ρs
@@ -56,12 +110,10 @@ end
 """
     adapt!!(ρ::AdaptiveState, swap_ar, n)
 
-Return increment used to update `ρ`.
+Return updated `ρ` based on swap acceptance ratio `swap_ar` and iteration `n`.
 
-Corresponds to the increment in Eq. (14) from [^MIAS12].
-
-# References
-[^MIAS12] Miasojedow, B., Moulines, E., & Vihola, M., Adaptive Parallel Tempering Algorithm, (2012).
+See [`update_inverse_temperatures`](@ref) to see how we compute the resulting
+inverse temperatures from the adapted state `ρ`.
 """
 function adapt!!(ρ::AdaptiveState, swap_ar, n)
     swap_diff = swap_ar - ρ.swap_target_ar
@@ -83,36 +135,88 @@ function adapt!!(ρs::AbstractVector{<:AdaptiveState}, Δ, k, swap_ar, n)
 end
 
 """
-    update_inverse_temperatures(ρ::AdaptiveState, Δ_current)
-    update_inverse_temperatures(ρ::AbstractVector{<:AdaptiveState}, Δ_current)
+    update_inverse_temperatures(ρ::AdaptiveState{<:Geometric}, Δ_current)
+    update_inverse_temperatures(ρ::AbstractVector{<:AdaptiveState{<:Geometric}}, Δ_current)
 
 Return updated inverse temperatures computed from adaptation state(s) and `Δ_current`.
+
+This update is similar to Eq. (13) in [^MIAS12], with the only possible deviation
+being how we compute the scaling factor from `ρ`: see [`weight`](@ref) for information.
 
 If `ρ` is a `AbstractVector`, then it should be of length `length(Δ_current) - 1`,
 with `ρ[k]` corresponding to the adaptation state for the `k`-th inverse temperature.
 
-This performs an update similar to Eq. (13) in [^MIAS12], with the only possible deviation
-being how we compute the scaling factor from `ρ`: see [`weight`](@ref) for information.
-
 # References
-[^MIAS12] Miasojedow, B., Moulines, E., & Vihola, M., Adaptive Parallel Tempering Algorithm, (2012).
+[^MIAS12]: Miasojedow, B., Moulines, E., & Vihola, M., Adaptive Parallel Tempering Algorithm, (2012).
 """
-function update_inverse_temperatures(ρ::AdaptiveState, Δ_current)
-    Δ = Δ_current
-    N = length(Δ)
-    @assert length(ρs) ≥ N - 1 "number of adaptive states < number of temperatures"
+function update_inverse_temperatures(ρ::AdaptiveState{<:Geometric}, Δ_current)
+    Δ = similar(Δ_current)
+    β₀ = Δ_current[1]
+    Δ[1] = β₀
 
-    for ℓ in 1:N - 1
-        @inbounds Δ[ℓ + 1] = Δ[ℓ] * weight(ρ)
+    β = inv(β₀)
+    for ℓ in 1:length(Δ) - 1
+        # TODO: Is it worth it to do this on log-scale instead?
+        β *= weight(ρ)
+        @inbounds Δ[ℓ + 1] = β
     end
     return Δ
 end
 
-function update_inverse_temperatures(ρs::AbstractVector{<:AdaptiveState}, Δ_current)
-    Δ = Δ_current
-    Δ[1] = Δ_current[1]
+function update_inverse_temperatures(ρs::AbstractVector{<:AdaptiveState{<:Geometric}}, Δ_current)
+    Δ = similar(Δ_current)
+    N = length(Δ)
+    @assert length(ρs) ≥ N - 1 "number of adaptive states < number of temperatures"
+
+    β₀ = Δ_current[1]
+    Δ[1] = β₀
+
+    β = β₀
+    for ℓ in 1:N - 1
+        # TODO: Is it worth it to do this on log-scale instead?
+        β *= weight(ρs[ℓ])
+        @inbounds Δ[ℓ + 1] = β
+    end
+    return Δ
+end
+
+"""
+    update_inverse_temperatures(ρ::AdaptiveState{<:InverselyAdditive}, Δ_current)
+    update_inverse_temperatures(ρ::AbstractVector{<:AdaptiveState{<:InverselyAdditive}}, Δ_current)
+
+Return updated inverse temperatures computed from adaptation state(s) and `Δ_current`.
+
+This update increments the temperature (not _inverse_ temperature) by a positive constant,
+which is adapted by `ρ`.
+
+If `ρ` is a `AbstractVector`, then it should be of length `length(Δ_current) - 1`,
+with `ρ[k]` corresponding to the adaptation state for the `k`-th inverse temperature.
+"""
+function update_inverse_temperatures(ρ::AdaptiveState{<:InverselyAdditive}, Δ_current)
+    Δ = similar(Δ_current)
+    β₀ = Δ_current[1]
+    Δ[1] = β₀
+
+    T = inv(β₀)
     for ℓ in 1:length(Δ) - 1
-        @inbounds Δ[ℓ + 1] = Δ[ℓ] * weight(ρs[ℓ])
+        T += weight(ρ)
+        @inbounds Δ[ℓ + 1] = inv(T)
+    end
+    return Δ
+end
+
+function update_inverse_temperatures(ρs::AbstractVector{<:AdaptiveState{<:InverselyAdditive}}, Δ_current)
+    Δ = similar(Δ_current)
+    N = length(Δ)
+    @assert length(ρs) ≥ N - 1 "number of adaptive states < number of temperatures"
+
+    β₀ = Δ_current[1]
+    Δ[1] = β₀
+
+    T = inv(β₀)
+    for ℓ in 1:N - 1
+        T += weight(ρs[ℓ])
+        @inbounds Δ[ℓ + 1] = inv(T)
     end
     return Δ
 end
