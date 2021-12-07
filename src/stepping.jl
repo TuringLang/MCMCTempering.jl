@@ -73,7 +73,7 @@ The indices here are exactly those represented by `states[k].chain_to_process[1]
     "total number of steps taken"
     total_steps
     "contains all necessary information for adaptation of inverse_temperatures"
-    Ρ
+    adaptation_states
 end
 
 """
@@ -188,7 +188,7 @@ function AbstractMCMC.step(
         process_to_chain,
         chain_to_process,
         1,
-        sampler.Ρ
+        sampler.adaptation_states
     )
 
     return transition_for_chain(state), state

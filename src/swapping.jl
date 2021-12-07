@@ -112,14 +112,15 @@ function swap_attempt(rng, model, sampler, state, k, adapt, total_steps)
         swap_betas!(state.chain_to_process, state.process_to_chain, k)
     end
 
-    # Adaptation steps affects `Ρ` and `inverse_temperatures`, as the `Ρ` is
+    # Adaptation steps affects `ρs` and `inverse_temperatures`, as the `ρs` is
     # adapted before a new `inverse_temperatures` is generated and returned.
     if adapt
-        P, inverse_temperatures = adapt_ladder(
-            state.Ρ, state.inverse_temperatures, k, min(one(logα), exp(logα)), total_steps
+        ρs = adapt!!(
+            state.adaptation_states, state.inverse_temperatures,
+            k, min(one(logα), exp(logα)), total_steps
         )
-        @set! state.Ρ = P
-        @set! state.inverse_temperatures = inverse_temperatures
+        @set! state.adaptation_states = ρs
+        @set! state.inverse_temperatures = update_inverse_temperatures(ρs, state.inverse_temperatures)
     end
     return state
 end
