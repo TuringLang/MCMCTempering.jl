@@ -33,10 +33,15 @@ struct AdaptiveState{S,T1<:Real,T2<:Real,P<:PolynomialStep}
     swap_target_ar::T1
     scale_unconstrained::T2
     step::P
+    n::Int
 end
 
 function AdaptiveState(swap_target_ar, scale_unconstrained, step)
     return AdaptiveState(InverselyAdditive(), swap_target_ar, scale_unconstrained, step)
+end
+
+function AdaptiveState(schedule_type, swap_target_ar, scale_unconstrained, step)
+    return AdaptiveState(schedule_type, swap_target_ar, scale_unconstrained, step, 1)
 end
 
 """
@@ -108,29 +113,30 @@ end
 
 
 """
-    adapt!!(ρ::AdaptiveState, swap_ar, n)
+    adapt!!(ρ::AdaptiveState, swap_ar)
 
-Return updated `ρ` based on swap acceptance ratio `swap_ar` and iteration `n`.
+Return updated `ρ` based on swap acceptance ratio `swap_ar`.
 
 See [`update_inverse_temperatures`](@ref) to see how we compute the resulting
 inverse temperatures from the adapted state `ρ`.
 """
-function adapt!!(ρ::AdaptiveState, swap_ar, n)
+function adapt!!(ρ::AdaptiveState, swap_ar)
     swap_diff = swap_ar - ρ.swap_target_ar
-    γ = get(ρ.step, n)
-    return @set ρ.scale_unconstrained = ρ.scale_unconstrained + γ * swap_diff
+    γ = get(ρ.step, ρ.n)
+    ρ_new = @set ρ.scale_unconstrained = ρ.scale_unconstrained + γ * swap_diff
+    return @set ρ_new.n += 1
 end
 
 """
-    adapt!!(ρ::AdaptiveState, Δ, k, swap_ar, n)
-    adapt!!(ρ::AbstractVector{<:AdaptiveState}, Δ, k, swap_ar, n)
+    adapt!!(ρ::AdaptiveState, Δ, k, swap_ar)
+    adapt!!(ρ::AbstractVector{<:AdaptiveState}, Δ, k, swap_ar)
 
 Return adapted state(s) given that we just proposed a swap of the `k`-th
 and `(k + 1)`-th temperatures with acceptance ratio `swap_ar`.
 """
-adapt!!(ρ::AdaptiveState, Δ, k, swap_ar, n) = adapt!!(ρ, swap_ar, n)
-function adapt!!(ρs::AbstractVector{<:AdaptiveState}, Δ, k, swap_ar, n)
-    ρs[k] = adapt!!(ρs[k], swap_ar, n)
+adapt!!(ρ::AdaptiveState, Δ, k, swap_ar) = adapt!!(ρ, swap_ar)
+function adapt!!(ρs::AbstractVector{<:AdaptiveState}, Δ, k, swap_ar)
+    ρs[k] = adapt!!(ρs[k], swap_ar)
     return ρs
 end
 
