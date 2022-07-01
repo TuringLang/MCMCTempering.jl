@@ -1,3 +1,8 @@
+| :warning: WARNING          |
+|:---------------------------|
+
+This package is currently under development and non-functional. We anticipate the package will in working order by the end of summer 2022. Details below are subject to change.
+
 # MCMCTempering.jl
 
 MCMCTempering.jl implements simulated and parallel tempering, two methods for sampling from complex or multi-modal posteriors. These algorithms use temperature scheduling to flatten out the target distribution, making it easier to sample from.
