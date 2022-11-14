@@ -95,10 +95,11 @@ function init_adaptation(
 )
     Nt = length(Δ)
     step = PolynomialStep(η, stepsize)
-    ρs = [
-        AdaptiveState(schedule, swap_target, inversely_additive_weight_unconstrain(scale), step)
-        for _ in 1:(Nt - 1)
-    ]
+    # TODO: One common state or one per temperature?
+    # ρs = [
+    #     AdaptiveState(schedule, swap_target, inversely_additive_weight_unconstrain(scale), step)
+    #     for _ in 1:(Nt - 1)
+    # ]
     ρs = AdaptiveState(schedule, swap_target, log(scale), step)
     return ρs
 end
@@ -113,10 +114,11 @@ function init_adaptation(
 )
     Nt = length(Δ)
     step = PolynomialStep(η, stepsize)
-    ρs = [
-        AdaptiveState(schedule, swap_target, geometric_weight_unconstrain(scale), step)
-        for _ in 1:(Nt - 1)
-    ]
+    # TODO: One common state or one per temperature?
+    # ρs = [
+    #     AdaptiveState(schedule, swap_target, geometric_weight_unconstrain(scale), step)
+    #     for _ in 1:(Nt - 1)
+    # ]
     ρs = AdaptiveState(schedule, swap_target, geometric_weight_unconstrain(scale), step)
     return ρs
 end
