@@ -79,16 +79,17 @@ function tempered(
     swap_every::Integer = 1,
     adapt::Bool = true,
     adapt_target::Real = 0.234,
-    adapt_scale::Real = √2,
-    adapt_step::Real = 0.66,
-    adapt_schedule=InverselyAdditive(),
+    adapt_stepsize::Real = 1,
+    adapt_eta::Real = 0.66,
+    adapt_schedule = Geometric(),
+    adapt_scale = defaultscale(adapt_schedule, inverse_temperatures),
     kwargs...
 )
     inverse_temperatures = check_inverse_temperatures(inverse_temperatures)
     length(inverse_temperatures) > 1 || error("More than one inverse temperatures must be provided.")
     swap_every >= 1 || error("This must be a positive integer.")
     adaptation_states = init_adaptation(
-        adapt_schedule, inverse_temperatures, adapt_target, inv(adapt_scale), adapt_step
+        adapt_schedule, inverse_temperatures, adapt_target, adapt_scale, adapt_eta, adapt_stepsize
     )
     return TemperedSampler(sampler, inverse_temperatures, swap_every, swap_strategy, adapt, adaptation_states)
 end

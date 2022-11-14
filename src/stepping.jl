@@ -74,6 +74,12 @@ The indices here are exactly those represented by `states[k].chain_to_process[1]
     total_steps
     "contains all necessary information for adaptation of inverse_temperatures"
     adaptation_states
+    "flag which specifies wether this was a swap-step or not"
+    is_swap
+    "swap acceptance ratios on log-scale"
+    swap_acceptance_ratios
+end
+
 end
 
 """
