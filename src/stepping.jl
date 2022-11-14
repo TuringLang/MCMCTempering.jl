@@ -194,7 +194,9 @@ function AbstractMCMC.step(
         process_to_chain,
         chain_to_process,
         1,
-        sampler.adaptation_states
+        sampler.adaptation_states,
+        false,
+        Dict{Int,Float64}()
     )
 
     return transition_for_chain(state), state
@@ -207,8 +209,12 @@ function AbstractMCMC.step(
     state::TemperedState;
     kwargs...
 )
+    # Reset.
+    @set! state.swap_acceptance_ratios = empty(state.swap_acceptance_ratios)
+
     if should_swap(sampler, state)
         state = swap_step(rng, model, sampler, state)
+        @set! state.is_swap = true
     else
         # `TemperedState` has the transitions and states in the order of
         # the processes, and performs swaps by moving the (inverse) temperatures
@@ -227,6 +233,7 @@ function AbstractMCMC.step(
             )
             for i in 1:numtemps(sampler)
         ]
+        @set! state.is_swap = false
     end
 
     @set! state.total_steps += 1
