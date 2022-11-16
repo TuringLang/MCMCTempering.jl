@@ -221,11 +221,9 @@ function AbstractMCMC.step(
     kwargs...
 )
 
-    if state.total_steps < burnin
+    if state.total_steps <= burnin
         state = no_swap_step(rng, model, sampler, state; kwargs...)
-    elseif state.total_steps == burnin
-        println("Finished burning in...")
-        state = no_swap_step(rng, model, sampler, state; kwargs...)
+        @set! state.is_swap = false
     else
         state = full_step(rng, model, sampler, state; kwargs...)
     end
@@ -260,7 +258,6 @@ function no_swap_step(
         )
         for i in 1:numtemps(sampler)
     ]
-    @set! state.is_swap = false
 
     return state
 end
@@ -279,7 +276,8 @@ function full_step(
         state = swap_step(rng, model, sampler, state)
         @set! state.is_swap = true
     else
-        no_swap_step(rng, model, sampler, state; kwargs...)
+        state = no_swap_step(rng, model, sampler, state; kwargs...)
+        @set! state.is_swap = false
     end
 
     # We want to return the transition for the _first_ chain, i.e. the chain usually corresponding to `β=1.0`.
