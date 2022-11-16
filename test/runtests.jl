@@ -38,8 +38,7 @@ include("compat.jl")
 
         tempered_sampler_rwmh = tempered(
             sampler_rwmh,
-            inverse_temperatures,
-            MCMCTempering.StandardSwap();
+            inverse_temperatures;
             adapt = false,
             swap_every=swap_every
         )
@@ -147,7 +146,8 @@ include("compat.jl")
             # Number of iterations needed to obtain `nsamples` of non-swap iterations.
             nsamples_tempered = Int(ceil(nsamples * swap_every ÷ (swap_every - 1)))
             spl = tempered(
-                spl_inner, inverse_temperatures, swapstrategy;
+                spl_inner, inverse_temperatures;
+                swap_strategy = swapstrategy,
                 adapt=false,  # TODO: Test adaptation. Seems to work in some cases though.
                 adapt_schedule=MCMCTempering.Geometric(),
                 adapt_stepsize=1,

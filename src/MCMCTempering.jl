@@ -14,6 +14,7 @@ using DocStringExtensions
 
 include("adaptation.jl")
 include("swapping.jl")
+include("states.jl")
 include("tempered.jl")
 include("ladders.jl")
 include("stepping.jl")
@@ -35,7 +36,7 @@ function AbstractMCMC.bundle_samples(
     kwargs...
 )
     AbstractMCMC.bundle_samples(
-        ts, model, sampler_for_chain(sampler, state), state_for_chain(state), chain_type;
+        ts, model, sampler_for_chain(sampler, state, 1), state_for_chain(state, 1), chain_type;
         kwargs...
     )
 end

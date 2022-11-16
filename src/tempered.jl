@@ -1,7 +1,7 @@
 """
     TemperedSampler <: AbstractMCMC.AbstractSampler
 
-A `TemperedSampler` struct wraps an `sampler` and samples using parallel tempering.
+A `TemperedSampler` struct wraps a sampler upon which to apply the Parallel Tempering algorithm.
 
 # Fields
 
@@ -32,50 +32,68 @@ getsampler(sampler::TemperedSampler, I...) = getsampler(sampler.sampler, I...)
 """
     numsteps(sampler::TemperedSampler)
 
-Return number of temperatures used by `sampler`.
+Return number of inverse temperatures used by `sampler`.
 """
 numtemps(sampler::TemperedSampler) = length(sampler.inverse_temperatures)
 
+"""
+    sampler_for_chain(sampler::TemperedSampler, state::TemperedState[, I...])
+
+Return the sampler corresponding to the chain indexed by `I...`.
+If `I...` is not specified, the sampler corresponding to `β=1.0` will be returned.
+"""
+sampler_for_chain(sampler::TemperedSampler, state::TemperedState) = sampler_for_chain(sampler, state, 1)
+function sampler_for_chain(sampler::TemperedSampler, state::TemperedState, I...)
+    return getsampler(sampler.sampler, state.chain_to_process[I...])
+end
 
 """
-    tempered(sampler, inverse_temperatures; kwargs...)
+    sampler_for_process(sampler::TemperedSampler, state::TemperedState, I...)
+
+Return the sampler corresponding to the process indexed by `I...`.
+"""
+function sampler_for_process(sampler::TemperedSampler, state::TemperedState, I...)
+    return getsampler(sampler.sampler, I...)
+end
+
+"""
+    tempered(sampler, inverse_temperatures::Vector{<:Real}; kwargs...)
     OR
-    tempered(sampler, Nt::Integer; kwargs...)
+    tempered(sampler, N_it::Integer; kwargs...)
 
 Return tempered version of `sampler` using the provided `inverse_temperatures` or
-inverse temperatures generated from `Nt` and the `swap_strategy`.
+inverse temperatures generated from `N_it` and the `swap_strategy`.
 
 # Arguments
 - `sampler` is an algorithm or sampler object to be used for underlying sampling and to apply tempering to
 - The temperature schedule can be defined either explicitly or just as an integer number of temperatures, i.e. as:
   - `inverse_temperatures` containing a sequence of 'inverse temperatures' {β₀, ..., βₙ} where 0 ≤ βₙ < ... < β₁ < β₀ = 1
         OR
-  - `Nt::Integer`, specifying the number of inverse temperatures to include in a generated `inverse_temperatures`
+  - `N_it::Integer`, specifying the number of inverse temperatures to include in a generated `inverse_temperatures`
 
 # Keyword arguments
-- `swap_strategy::AbstractSwapStrategy` is the way in which temperature swaps are made.
-- `swap_every::Integer` steps are carried out between each tempering swap step attempt
+- `swap_strategy::AbstractSwapStrategy` is the way in which inverse temperature swaps between chains are made
+- `swap_every::Integer` steps are carried out between each attempt at a swap
 
 # See also
 - [`TemperedSampler`](@ref)
 - For more on the swap strategies:
   - [`AbstractSwapStrategy`](@ref)
   - [`StandardSwap`](@ref)
-  - [`RandomPermutationSwap`](@ref)
   - [`NonReversibleSwap`](@ref)
 """
 function tempered(
     sampler,
-    Nt::Integer,
+    N_it::Integer,
     swap_strategy::AbstractSwapStrategy = StandardSwap();
     kwargs...
 )
-    return tempered(sampler, generate_inverse_temperatures(Nt, swap_strategy); kwargs...)
+    return tempered(sampler, generate_inverse_temperatures(N_it, swap_strategy); swap_strategy = swap_strategy, kwargs...)
 end
 function tempered(
     sampler,
-    inverse_temperatures::Vector{<:Real},
-    swap_strategy::AbstractSwapStrategy = StandardSwap();
+    inverse_temperatures::Vector{<:Real};
+    swap_strategy::AbstractSwapStrategy = StandardSwap(),
     swap_every::Integer = 1,
     adapt::Bool = true,
     adapt_target::Real = 0.234,
@@ -85,9 +103,8 @@ function tempered(
     adapt_scale = defaultscale(adapt_schedule, inverse_temperatures),
     kwargs...
 )
-    inverse_temperatures = check_inverse_temperatures(inverse_temperatures)
-    length(inverse_temperatures) > 1 || error("More than one inverse temperatures must be provided.")
     swap_every >= 1 || error("This must be a positive integer.")
+    inverse_temperatures = check_inverse_temperatures(inverse_temperatures)
     adaptation_states = init_adaptation(
         adapt_schedule, inverse_temperatures, adapt_target, adapt_scale, adapt_eta, adapt_stepsize
     )

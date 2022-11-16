@@ -18,7 +18,7 @@ See also: [`AdaptiveState`](@ref), [`update_inverse_temperatures`](@ref), and
 """
 struct Geometric end
 
-defaultscale(::Geometric, inverse_temperatures) = eltype(inverse_temperatures)(0.9)
+defaultscale(::Geometric, Δ) = eltype(Δ)(0.9)
 
 """
     InverselyAdditive
@@ -30,7 +30,7 @@ See also: [`AdaptiveState`](@ref), [`update_inverse_temperatures`](@ref), and
 """
 struct InverselyAdditive end
 
-defaultscale(::InverselyAdditive, inverse_temperatures) = eltype(inverse_temperatures)(0.9)
+defaultscale(::InverselyAdditive, Δ) = eltype(Δ)(0.9)
 
 struct AdaptiveState{S,T1<:Real,T2<:Real,P<:PolynomialStep}
     schedule_type::S
@@ -93,12 +93,12 @@ function init_adaptation(
     η::Real,
     stepsize::Real
 )
-    Nt = length(Δ)
+    N_it = length(Δ)
     step = PolynomialStep(η, stepsize)
     # TODO: One common state or one per temperature?
     # ρs = [
     #     AdaptiveState(schedule, swap_target, inversely_additive_weight_unconstrain(scale), step)
-    #     for _ in 1:(Nt - 1)
+    #     for _ in 1:(N_it - 1)
     # ]
     ρs = AdaptiveState(schedule, swap_target, log(scale), step)
     return ρs
@@ -112,12 +112,12 @@ function init_adaptation(
     η::Real,
     stepsize::Real
 )
-    Nt = length(Δ)
+    N_it = length(Δ)
     step = PolynomialStep(η, stepsize)
     # TODO: One common state or one per temperature?
     # ρs = [
     #     AdaptiveState(schedule, swap_target, geometric_weight_unconstrain(scale), step)
-    #     for _ in 1:(Nt - 1)
+    #     for _ in 1:(N_it - 1)
     # ]
     ρs = AdaptiveState(schedule, swap_target, geometric_weight_unconstrain(scale), step)
     return ρs
