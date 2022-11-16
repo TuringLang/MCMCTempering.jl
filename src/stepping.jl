@@ -80,8 +80,6 @@ The indices here are exactly those represented by `states[k].chain_to_process[1]
     swap_acceptance_ratios
 end
 
-end
-
 """
     transition_for_chain(state[, I...])
 
