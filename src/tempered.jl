@@ -81,6 +81,7 @@ inverse temperatures generated from `N_it` and the `swap_strategy`.
   - [`AbstractSwapStrategy`](@ref)
   - [`StandardSwap`](@ref)
   - [`NonReversibleSwap`](@ref)
+  - [`RandomPermutationSwap`](@ref)
 """
 function tempered(
     sampler,
