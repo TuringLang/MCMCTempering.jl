@@ -157,6 +157,18 @@ function should_swap(sampler::TemperedSampler, state::TemperedState)
     return state.total_steps % sampler.swap_every == 0
 end
 
+function StatsBase.sample(
+    rng::Random.AbstractRNG,
+    model::AbstractMCMC.AbstractModel,
+    sampler::TemperedSampler,
+    N::Integer;
+    discard_initial = 0,
+    kwargs...
+)
+    return AbstractMCMC.mcmcsample(rng, model, sampler, N; burnin = discard_initial, kwargs...)
+end
+
+# Inital step
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
@@ -205,6 +217,59 @@ function AbstractMCMC.step(
     model,
     sampler::TemperedSampler,
     state::TemperedState;
+    burnin = 0,
+    kwargs...
+)
+
+    if state.total_steps < burnin
+        state = no_swap_step(rng, model, sampler, state; kwargs...)
+    elseif state.total_steps == burnin
+        println("Finished burning in...")
+        state = no_swap_step(rng, model, sampler, state; kwargs...)
+    else
+        state = full_step(rng, model, sampler, state; kwargs...)
+    end
+
+    @set! state.total_steps += 1
+
+    # We want to return the transition for the _first_ chain, i.e. the chain usually corresponding to `β=1.0`.
+    return transition_for_chain(state), state
+end
+
+function no_swap_step(
+    rng::Random.AbstractRNG,
+    model,
+    sampler::TemperedSampler,
+    state::TemperedState;
+    kwargs...
+)
+    # `TemperedState` has the transitions and states in the order of
+    # the processes, and performs swaps by moving the (inverse) temperatures
+    # `β` between the processes, rather than moving states between processes
+    # and keeping the `β` local to each process.
+    # 
+    # Therefore we iterate over the processes and then extract the corresponding
+    # `β`, `sampler` and `state`, and take a step.
+    @set! state.transitions_and_states = [
+        AbstractMCMC.step(
+            rng,
+            make_tempered_model(sampler, model, β_for_process(state, i)),
+            sampler_for_process(sampler, state, i),
+            state_for_process(state, i);
+            kwargs...
+        )
+        for i in 1:numtemps(sampler)
+    ]
+    @set! state.is_swap = false
+
+    return state
+end
+
+function full_step(
+    rng::Random.AbstractRNG,
+    model,
+    sampler::TemperedSampler,
+    state::TemperedState;
     kwargs...
 )
     # Reset.
@@ -214,31 +279,12 @@ function AbstractMCMC.step(
         state = swap_step(rng, model, sampler, state)
         @set! state.is_swap = true
     else
-        # `TemperedState` has the transitions and states in the order of
-        # the processes, and performs swaps by moving the (inverse) temperatures
-        # `β` between the processes, rather than moving states between processes
-        # and keeping the `β` local to each process.
-        # 
-        # Therefore we iterate over the processes and then extract the corresponding
-        # `β`, `sampler` and `state`, and take a step.
-        @set! state.transitions_and_states = [
-            AbstractMCMC.step(
-                rng,
-                make_tempered_model(sampler, model, β_for_process(state, i)),
-                sampler_for_process(sampler, state, i),
-                state_for_process(state, i);
-                kwargs...
-            )
-            for i in 1:numtemps(sampler)
-        ]
-        @set! state.is_swap = false
+        no_swap_step(rng, model, sampler, state; kwargs...)
     end
 
-    @set! state.total_steps += 1
     # We want to return the transition for the _first_ chain, i.e. the chain usually corresponding to `β=1.0`.
-    return transition_for_chain(state), state
+    return state
 end
-
 
 """
     swap_step([strategy::AbstractSwapStrategy, ]rng, model, sampler, state)
