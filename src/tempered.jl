@@ -70,12 +70,12 @@ function tempered(
     swap_strategy::AbstractSwapStrategy = StandardSwap();
     kwargs...
 )
-    return tempered(sampler, generate_inverse_temperatures(Nt, swap_strategy), swap_strategy; kwargs...)
+    return tempered(sampler, generate_inverse_temperatures(Nt, swap_strategy); kwargs...)
 end
 function tempered(
     sampler,
     inverse_temperatures::Vector{<:Real},
-    swap_strategy::AbstractSwapStrategy;
+    swap_strategy::AbstractSwapStrategy = StandardSwap();
     swap_every::Integer = 1,
     adapt::Bool = true,
     adapt_target::Real = 0.234,
