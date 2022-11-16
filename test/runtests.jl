@@ -35,8 +35,12 @@ include("compat.jl")
         # Number of iterations needed to obtain `nsamples` of non-swap iterations.
         swap_every = 2
         nsamples_tempered = Int(ceil(nsamples * swap_every ÷ (swap_every - 1)))
+
         tempered_sampler_rwmh = tempered(
-            sampler_rwmh, inverse_temperatures, MCMCTempering.StandardSwap();
+            sampler_rwmh,
+            inverse_temperatures,
+            MCMCTempering.StandardSwap();
+            adapt = false,
             swap_every=swap_every
         )
 
@@ -45,7 +49,7 @@ include("compat.jl")
         callback = StateHistoryCallback(states)
 
         # Sample.
-        samples = AbstractMCMC.sample(model, tempered_sampler_rwmh, nsamples_tempered; callback=callback, progress=true);
+        samples = AbstractMCMC.sample(model, tempered_sampler_rwmh, nsamples_tempered; callback=callback, progress=true)
         βs = mapreduce(Base.Fix2(getproperty, :inverse_temperatures), hcat, states)
 
         states_swapped = filter(Base.Fix2(getproperty, :is_swap), states)
@@ -67,10 +71,8 @@ include("compat.jl")
         end
         @test all(process_to_chain_uniqueness)
     
-        if any(isa.(Ref(swapstrategy), [MCMCTempering.StandardSwap, MCMCTempering.NonReversibleSwap]))
-            # For these strategies, the index process should not move by more than 1.
-            @test all(abs.(diff(process_to_chain_history[:, 1])) .≤ 1)
-        end
+        # For these strategies, the index process should not move by more than 1.
+        @test all(abs.(diff(process_to_chain_history[:, 1])) .≤ 1)
     
         chain_to_process_uniqueness = map(states) do state
             length(unique(state.chain_to_process)) == length(state.chain_to_process)
@@ -89,7 +91,7 @@ include("compat.jl")
         # Get example state.
         state = states[end]
         chain = AbstractMCMC.bundle_samples(
-            samples, model, spl.sampler, MCMCTempering.state_for_chain(state), MCMCChains.Chains
+            samples, model, tempered_sampler_rwmh.sampler, MCMCTempering.state_for_chain(state), MCMCChains.Chains
         )
     
         # Thin chain and discard burnin.
@@ -100,21 +102,6 @@ include("compat.jl")
         desc = describe(chain_thinned)[1].nt
         μ = desc.mean
         σ = desc.std
-    
-        # `StandardSwap` is quite unreliable, so struggling to come up with reasonable tests.
-        if !(swapstrategy isa StandardSwap)
-            @test μ ≈ μ_true rtol=0.05
-
-            # NOTE(torfjelde): The variance is usually quite large for the tempered chains
-            # and I don't quite know if this is expected or not.
-            # @test norm(σ - σ_true) ≤ 0.5
-    
-            # Comparison to just running the internal sampler.
-            ess = MCMCChains.ess_rhat(chain_thinned).nt.ess
-            # HACK: Just make sure it's not doing _horrible_. Though we'd hope it would
-            # actually do better than the internal sampler.
-            @test all(ess .≥ ess_mh .* 0.5)
-        end
 
     end
 
