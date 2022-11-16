@@ -1,4 +1,3 @@
-/Manifest.toml
+Manifest.toml
 *.DS_Store
-*.png
-deprecated
+working_code
