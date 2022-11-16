@@ -7,17 +7,6 @@ function should_swap(sampler::TemperedSampler, state::TemperedState)
     return state.total_steps % sampler.swap_every == 0
 end
 
-function StatsBase.sample(
-    rng::Random.AbstractRNG,
-    model::AbstractMCMC.AbstractModel,
-    sampler::TemperedSampler,
-    N::Integer;
-    discard_initial = 0,
-    kwargs...
-)
-    return AbstractMCMC.mcmcsample(rng, model, sampler, N; burnin = discard_initial, kwargs...)
-end
-
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
@@ -66,15 +55,18 @@ function AbstractMCMC.step(
     model,
     sampler::TemperedSampler,
     state::TemperedState;
-    burnin = 0,
     kwargs...
 )
 
-    if state.total_steps <= burnin
+    # Reset.
+    @set! state.swap_acceptance_ratios = empty(state.swap_acceptance_ratios)
+
+    if should_swap(sampler, state)
+        state = swap_step(rng, model, sampler, state)
+        @set! state.is_swap = true
+    else
         state = no_swap_step(rng, model, sampler, state; kwargs...)
         @set! state.is_swap = false
-    else
-        state = full_step(rng, model, sampler, state; kwargs...)
     end
 
     @set! state.total_steps += 1
@@ -108,28 +100,6 @@ function no_swap_step(
         for i in 1:numtemps(sampler)
     ]
 
-    return state
-end
-
-function full_step(
-    rng::Random.AbstractRNG,
-    model,
-    sampler::TemperedSampler,
-    state::TemperedState;
-    kwargs...
-)
-    # Reset.
-    @set! state.swap_acceptance_ratios = empty(state.swap_acceptance_ratios)
-
-    if should_swap(sampler, state)
-        state = swap_step(rng, model, sampler, state)
-        @set! state.is_swap = true
-    else
-        state = no_swap_step(rng, model, sampler, state; kwargs...)
-        @set! state.is_swap = false
-    end
-
-    # We want to return the transition for the _first_ chain, i.e. the chain usually corresponding to `β=1.0`.
     return state
 end
 

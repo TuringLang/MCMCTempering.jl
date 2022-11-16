@@ -1,7 +1,6 @@
 module MCMCTempering
 
 import AbstractMCMC
-import StatsBase
 import Distributions
 import Random
 
