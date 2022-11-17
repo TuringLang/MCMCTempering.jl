@@ -95,7 +95,7 @@ function tempered(
     sampler::AbstractMCMC.AbstractSampler,
     inverse_temperatures::Vector{<:Real};
     swap_strategy::AbstractSwapStrategy=StandardSwap(),
-    swap_every::Integer=1,
+    swap_every::Integer=2,
     adapt::Bool=false,
     adapt_target::Real=0.234,
     adapt_stepsize::Real=1,
@@ -104,7 +104,7 @@ function tempered(
     adapt_scale=defaultscale(adapt_schedule, inverse_temperatures),
     kwargs...
 )
-    swap_every >= 1 || error("This must be a positive integer.")
+    swap_every >= 2 || error("This must be a positive integer greater than 1.")
     inverse_temperatures = check_inverse_temperatures(inverse_temperatures)
     adaptation_states = init_adaptation(
         adapt_schedule, inverse_temperatures, adapt_target, adapt_scale, adapt_eta, adapt_stepsize

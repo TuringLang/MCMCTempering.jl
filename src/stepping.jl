@@ -1,5 +1,5 @@
 """
-should_swap(sampler, state)
+    should_swap(sampler, state)
 
 Return `true` if a swap should happen at this iteration, and `false` otherwise.
 """
