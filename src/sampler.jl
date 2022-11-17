@@ -57,11 +57,11 @@ function sampler_for_process(sampler::TemperedSampler, state::TemperedState, I..
 end
 
 """
-    tempered(sampler, inverse_temperatures::Vector{<:Real}; kwargs...)
+    tempered(sampler, inverse_temperatures; kwargs...)
     OR
-    tempered(sampler, N_it::Integer; kwargs...)
+    tempered(sampler, N_it; swap_strategy=StandardSwap(), kwargs...)
 
-Return tempered version of `sampler` using the provided `inverse_temperatures` or
+Return a tempered version of `sampler` using the provided `inverse_temperatures` or
 inverse temperatures generated from `N_it` and the `swap_strategy`.
 
 # Arguments
@@ -69,7 +69,7 @@ inverse temperatures generated from `N_it` and the `swap_strategy`.
 - The temperature schedule can be defined either explicitly or just as an integer number of temperatures, i.e. as:
   - `inverse_temperatures` containing a sequence of 'inverse temperatures' {β₀, ..., βₙ} where 0 ≤ βₙ < ... < β₁ < β₀ = 1
         OR
-  - `N_it::Integer`, specifying the number of inverse temperatures to include in a generated `inverse_temperatures`
+  - `N_it`, specifying the integer number of inverse temperatures to include in a generated `inverse_temperatures`
 
 # Keyword arguments
 - `swap_strategy::AbstractSwapStrategy` is the way in which inverse temperature swaps between chains are made
@@ -84,24 +84,24 @@ inverse temperatures generated from `N_it` and the `swap_strategy`.
   - [`RandomPermutationSwap`](@ref)
 """
 function tempered(
-    sampler,
-    N_it::Integer,
-    swap_strategy::AbstractSwapStrategy = StandardSwap();
+    sampler::AbstractMCMC.AbstractSampler,
+    N_it::Integer;
+    swap_strategy::AbstractSwapStrategy=StandardSwap(),
     kwargs...
 )
     return tempered(sampler, generate_inverse_temperatures(N_it, swap_strategy); swap_strategy = swap_strategy, kwargs...)
 end
 function tempered(
-    sampler,
+    sampler::AbstractMCMC.AbstractSampler,
     inverse_temperatures::Vector{<:Real};
-    swap_strategy::AbstractSwapStrategy = StandardSwap(),
-    swap_every::Integer = 1,
-    adapt::Bool = true,
-    adapt_target::Real = 0.234,
-    adapt_stepsize::Real = 1,
-    adapt_eta::Real = 0.66,
-    adapt_schedule = Geometric(),
-    adapt_scale = defaultscale(adapt_schedule, inverse_temperatures),
+    swap_strategy::AbstractSwapStrategy=StandardSwap(),
+    swap_every::Integer=1,
+    adapt::Bool=false,
+    adapt_target::Real=0.234,
+    adapt_stepsize::Real=1,
+    adapt_eta::Real=0.66,
+    adapt_schedule=Geometric(),
+    adapt_scale=defaultscale(adapt_schedule, inverse_temperatures),
     kwargs...
 )
     swap_every >= 1 || error("This must be a positive integer.")

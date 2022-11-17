@@ -72,6 +72,8 @@ The indices here are exactly those represented by `states[k].chain_to_process[1]
     process_to_chain
     "total number of steps taken"
     total_steps
+    "number of burn-in steps taken"
+    burnin_steps
     "contains all necessary information for adaptation of inverse_temperatures"
     adaptation_states
     "flag which specifies wether this was a swap-step or not"

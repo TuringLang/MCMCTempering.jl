@@ -4,6 +4,7 @@ import AbstractMCMC
 import Distributions
 import Random
 
+using ProgressLogging: ProgressLogging
 using ConcreteStructs: @concrete
 using Setfield: @set, @set!
 
@@ -13,13 +14,15 @@ using DocStringExtensions
 
 include("adaptation.jl")
 include("swapping.jl")
-include("states.jl")
-include("tempered.jl")
+include("state.jl")
+include("sampler.jl")
+include("sampling.jl")
 include("ladders.jl")
 include("stepping.jl")
 include("model.jl")
 
 export tempered,
+    tempered_sample,
     TemperedSampler,
     make_tempered_model,
     StandardSwap,
