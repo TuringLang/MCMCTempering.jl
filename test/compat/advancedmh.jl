@@ -7,8 +7,8 @@ function MCMCTempering.make_tempered_model(sampler, m::DensityModel, β)
     return DensityModel(Base.Fix1(*, β) ∘ m.logdensity)
 end
 
-# Now we need to make swapping possible.
-# This should return a callable which evaluates to the temperered logdensity.
+# Now we need to make swapping possible, which requires computing
+# the log density of the tempered model at the candidate states.
 function MCMCTempering.compute_tempered_logdensities(
     model::DensityModel,
     sampler,
@@ -16,10 +16,7 @@ function MCMCTempering.compute_tempered_logdensities(
     transition_other::AdvancedMH.Transition,
     β
 )
-    # Just re-use computation from transition.
-    # lp = transition.lp
     lp = β * AdvancedMH.logdensity(model, transition.params)
-    # Compute for the other.
     lp_other = β * AdvancedMH.logdensity(model, transition_other.params)
     return lp, lp_other
 end
