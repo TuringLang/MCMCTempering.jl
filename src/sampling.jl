@@ -24,11 +24,12 @@ function tempered_sample(
     model,
     sampler::AbstractMCMC.AbstractSampler,
     N::Integer,
-    tempering_argument::Union{Integer, Vector{<:Real}};
+    arg::Union{Integer, Vector{<:Real}};
     kwargs...
 )
-    return tempered_sample(Random.default_rng(), model, sampler, N, tempering_argument; kwargs...)
+    return tempered_sample(Random.default_rng(), model, sampler, N, arg; kwargs...)
 end
+
 function tempered_sample(
     rng,
     model,
@@ -40,6 +41,7 @@ function tempered_sample(
 )
     return tempered_sample(model, sampler, N, generate_inverse_temperatures(N_it, swap_strategy); swap_strategy=swap_strategy, kwargs...)
 end
+
 function tempered_sample(
     rng,
     model,

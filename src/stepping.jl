@@ -16,6 +16,7 @@ function AbstractMCMC.step(
     init_params=nothing,
     kwargs...
 )
+
     # `TemperedState` has the transitions and states in the order of
     # the processes, and performs swaps by moving the (inverse) temperatures
     # `β` between the processes, rather than moving states between processes
