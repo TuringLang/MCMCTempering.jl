@@ -67,11 +67,14 @@ end
 
 """
     compute_tempered_logdensities(model, sampler, transition, transition_other, β)
+    compute_tempered_logdensities(model, sampler, sampler_other, transition, transition_other, state, state_other, β, β_other)
 
 Return `(logπ(transition, β), logπ(transition_other, β))` where `logπ(x, β)` denotes the
 log-density for `model` with inverse-temperature `β`.
 """
-function compute_tempered_logdensities end
+function compute_tempered_logdensities(model, sampler, sampler_other, transition, transition_other, state, state_other, β, β_other)
+    return compute_tempered_logdensities(model, sampler, transition, transition_other, β)
+end
 
 """
     swap_acceptance_pt(logπk, logπkp1)
@@ -92,17 +95,22 @@ Attempt to swap the temperatures of two chains by tempering the densities and
 calculating the swap acceptance ratio; then swapping if it is accepted.
 """
 function swap_attempt(rng, model, sampler, state, k, adapt, total_steps)
+    # TODO: Allow arbitrary `k` rather than just `k + 1`.
     # Extract the relevant transitions.
+    samplerk = sampler_for_chain(sampler, state, k)
+    samplerkp1 = sampler_for_chain(sampler, state, k + 1)
     transitionk = transition_for_chain(state, k)
     transitionkp1 = transition_for_chain(state, k + 1)
+    statek = state_for_chain(state, k)
+    statekp1 = state_for_chain(state, k + 1)
+    βk = β_for_chain(state, k)
+    βkp1 = β_for_chain(state, k + 1)
     # Evaluate logdensity for both parameters for each tempered density.
-    # NOTE: Here we want to propose swaps between the neighboring _chains_ not processes,
-    # and so we get the `β` and `sampler` corresponding to the k-th and (k+1)-th chains.
     logπk_θk, logπk_θkp1 = compute_tempered_logdensities(
-        model, sampler_for_chain(sampler, state, k), transitionk, transitionkp1, β_for_chain(state, k)
+        model, samplerk, samplerkp1, transitionk, transitionkp1, statek, statekp1, βk, βkp1
     )
     logπkp1_θkp1, logπkp1_θk = compute_tempered_logdensities(
-        model, sampler_for_chain(sampler, state, k + 1), transitionkp1, transitionk, β_for_chain(state, k + 1)
+        model, samplerkp1, samplerk, transitionkp1, transitionk, statekp1, statek, βkp1, βk
     )
     
     # If the proposed temperature swap is accepted according `logα`,
