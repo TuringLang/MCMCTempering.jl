@@ -11,9 +11,12 @@ function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
     sampler::TemperedSampler;
+    N_burnin::Integer=0,
+    burnin_progress::Bool=AbstractMCMC.PROGRESS[],
     init_params=nothing,
     kwargs...
 )
+
     # `TemperedState` has the transitions and states in the order of
     # the processes, and performs swaps by moving the (inverse) temperatures
     # `β` between the processes, rather than moving states between processes
@@ -42,10 +45,31 @@ function AbstractMCMC.step(
         process_to_chain,
         chain_to_process,
         1,
+        0,
         sampler.adaptation_states,
         false,
         Dict{Int,Float64}()
     )
+
+    if N_burnin > 0
+        AbstractMCMC.@ifwithprogresslogger burnin_progress name = "Burn-in" begin
+            # Determine threshold values for progress logging
+            # (one update per 0.5% of progress)
+            if burnin_progress
+                threshold = N_burnin ÷ 200
+                next_update = threshold
+            end
+
+            for i in 1:N_burnin
+                if burnin_progress && i >= next_update
+                    ProgressLogging.@logprogress i / N_burnin
+                    next_update = i + threshold
+                end
+                state = no_swap_step(rng, model, sampler, state; kwargs...)
+                @set! state.burnin_steps += 1
+            end
+        end
+    end
 
     return transition_for_chain(state), state
 end
@@ -57,7 +81,6 @@ function AbstractMCMC.step(
     state::TemperedState;
     kwargs...
 )
-
     # Reset.
     @set! state.swap_acceptance_ratios = empty(state.swap_acceptance_ratios)
 
