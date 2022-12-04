@@ -1,156 +1,199 @@
 """
-    mutable struct TemperedState
-        states          :: Array{Any}
-        Δ               :: Vector{<:Real}
-        Δ_index         :: Vector{<:Integer}
-        chain_index     :: Vector{<:Integer}
-        step_counter    :: Integer
-        total_steps     :: Integer
-        Δ_history       :: Array{<:Real, 2}
-        Δ_index_history :: Array{<:Integer, 2}
-        Ρ               :: Vector{AdaptiveState}
-    end
+    should_swap(sampler, state)
 
-A `TemperedState` struct contains the `states` of each of the parallel chains
-used throughout parallel tempering as pairs of `Transition`s and `VarInfo`s,
-it also stores necessary information for tempering:
-- `states` is an Array of pairs of `Transition`s and `VarInfo`s, one for each 
-  tempered chain
-- `Δ` contains the ordered sequence of inverse temperatures
-- `Δ_index` contains the current ordering to apply the temperatures to each chain, tracking swaps,
-    i.e., contains the index `Δ_index[i] = j` of the temperature in `Δ`, `Δ[j]`, to apply to chain `i`
-- `chain_index` contains the index `chain_index[i] = k` of the chain tempered by `Δ[i]`
-    NOTE that to convert between this and `Δ_index` we simply use the `sortperm()` function
-- `step_counter` maintains the number of steps taken since the last swap attempt
-- `total_steps` maintains the count of the total number of steps taken
-- `Δ_index_history` records the history of swaps that occur in sampling by recording the `Δ_index` at each step
-- `Δ_history` records the values of the inverse temperatures, these will change if adaptation is being used
-- `Ρ` contains all of the information required for adaptation of Δ
-
-Example of swaps across 4 chains and the values of `chain_index` and `Δ_index`:
-
-Chains:        chain_index:     Δ_index:
-| | | |        1  2  3  4       1  2  3  4
-| | | |    
- V  | |        2  1  3  4       2  1  3  4
- Λ  | |    
-| | | |        2  1  3  4       2  1  3  4
-| | | |    
-|  V  |        2  3  1  4       3  1  2  4
-|  Λ  |    
-| | | |        2  3  1  4       3  1  2  4
-| | | |  
+Return `true` if a swap should happen at this iteration, and `false` otherwise.
 """
-mutable struct TemperedState
-    states          :: Array{Any}
-    Δ               :: Vector{<:Real}
-    Δ_index         :: Vector{<:Integer}
-    chain_index     :: Vector{<:Integer}
-    step_counter    :: Integer
-    total_steps     :: Integer
-    Δ_history       :: Array{<:Real, 2}
-    Δ_index_history :: Array{<:Integer, 2}
-    Ρ               :: Vector{AdaptiveState}
+function should_swap(sampler::TemperedSampler, state::TemperedState)
+    return state.total_steps % sampler.swap_every == 0
 end
 
-
-"""
-For each `β` in `Δ`, carry out a step with a tempered model at the corresponding `β` inverse temperature,
-resulting in a list of transitions and states, the transition associated with `β₀ = 1` is then returned with the
-rest of the information being stored in the state.
-"""
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
-    spl::TemperedSampler;
+    sampler::TemperedSampler;
+    N_burnin::Integer=0,
+    burnin_progress::Bool=AbstractMCMC.PROGRESS[],
+    init_params=nothing,
     kwargs...
 )
-    states = [
+
+    # `TemperedState` has the transitions and states in the order of
+    # the processes, and performs swaps by moving the (inverse) temperatures
+    # `β` between the processes, rather than moving states between processes
+    # and keeping the `β` local to each process.
+    # 
+    # Therefore we iterate over the processes and then extract the corresponding
+    # `β`, `sampler` and `state`, and take a initialize.
+    transitions_and_states = [
         AbstractMCMC.step(
             rng,
-            make_tempered_model(model, spl.Δ[spl.Δ_init[i]]),
-            spl.internal_sampler;
+            make_tempered_model(sampler, model, sampler.inverse_temperatures[i]),
+            getsampler(sampler, i);
+            init_params=init_params !== nothing ? init_params[i] : nothing,
             kwargs...
         )
-        for i in 1:length(spl.Δ)
+        for i in 1:numtemps(sampler)
     ]
-    return (
-        states[sortperm(spl.Δ_init)[1]][1],
-        TemperedState(
-            states,spl.Δ, spl.Δ_init, sortperm(spl.Δ_init), 1, 1, Array{Real, 2}(spl.Δ'), Array{Integer, 2}(spl.Δ_init'), spl.Ρ
-        )
+
+    # Make sure to collect, because we'll be using `setindex!(!)` later.
+    process_to_chain = collect(1:length(sampler.inverse_temperatures))
+    # Need to `copy` because this might be mutated.
+    chain_to_process = copy(process_to_chain)
+    state = TemperedState(
+        transitions_and_states,
+        sampler.inverse_temperatures,
+        process_to_chain,
+        chain_to_process,
+        1,
+        0,
+        sampler.adaptation_states,
+        false,
+        Dict{Int,Float64}()
     )
+
+    if N_burnin > 0
+        AbstractMCMC.@ifwithprogresslogger burnin_progress name = "Burn-in" begin
+            # Determine threshold values for progress logging
+            # (one update per 0.5% of progress)
+            if burnin_progress
+                threshold = N_burnin ÷ 200
+                next_update = threshold
+            end
+
+            for i in 1:N_burnin
+                if burnin_progress && i >= next_update
+                    ProgressLogging.@logprogress i / N_burnin
+                    next_update = i + threshold
+                end
+                state = no_swap_step(rng, model, sampler, state; kwargs...)
+                @set! state.burnin_steps += 1
+            end
+        end
+    end
+
+    return transition_for_chain(state), state
 end
+
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
-    spl::TemperedSampler,
-    ts::TemperedState;
+    sampler::TemperedSampler,
+    state::TemperedState;
     kwargs...
 )
-    if ts.step_counter == spl.N_swap
-        ts = swap_step(rng, model, spl, ts)
-        ts.step_counter = 0
+    # Reset.
+    @set! state.swap_acceptance_ratios = empty(state.swap_acceptance_ratios)
+
+    if should_swap(sampler, state)
+        state = swap_step(rng, model, sampler, state)
+        @set! state.is_swap = true
     else
-        ts.states = [
-            AbstractMCMC.step(
-                rng,
-                make_tempered_model(model, ts.Δ[ts.Δ_index[i]]),
-                spl.internal_sampler,
-                ts.states[i][2];
-                kwargs...
-            )
-            for i in 1:length(ts.Δ)
-        ]
-        ts.step_counter += 1
+        state = no_swap_step(rng, model, sampler, state; kwargs...)
+        @set! state.is_swap = false
     end
 
-    ts.Δ_history = vcat(ts.Δ_history, Array{Real, 2}(ts.Δ'))
-    ts.Δ_index_history = vcat(ts.Δ_index_history, Array{Integer, 2}(ts.Δ_index'))
-    ts.total_steps += 1
-    return ts.states[ts.chain_index[1]][1], ts  # Use chain_index[1] to ensure the sample from the target is always returned for the step
+    @set! state.total_steps += 1
+
+    # We want to return the transition for the _first_ chain, i.e. the chain usually corresponding to `β=1.0`.
+    return transition_for_chain(state), state
 end
 
+function no_swap_step(
+    rng::Random.AbstractRNG,
+    model,
+    sampler::TemperedSampler,
+    state::TemperedState;
+    kwargs...
+)
+    # `TemperedState` has the transitions and states in the order of
+    # the processes, and performs swaps by moving the (inverse) temperatures
+    # `β` between the processes, rather than moving states between processes
+    # and keeping the `β` local to each process.
+    # 
+    # Therefore we iterate over the processes and then extract the corresponding
+    # `β`, `sampler` and `state`, and take a step.
+    @set! state.transitions_and_states = [
+        AbstractMCMC.step(
+            rng,
+            make_tempered_model(sampler, model, β_for_process(state, i)),
+            sampler_for_process(sampler, state, i),
+            state_for_process(state, i);
+            kwargs...
+        )
+        for i in 1:numtemps(sampler)
+    ]
+
+    return state
+end
 
 """
-    swap_step(rng, model, spl, ts)
+    swap_step([strategy::AbstractSwapStrategy, ]rng, model, sampler, state)
 
-Uses the internals of the passed `TemperedSampler` - `spl` - and `TemperedState` -
-`ts` - to perform a "swap step" between temperatures, in accordance with the relevant
-swap strategy.
+Return new `state`, now with temperatures swapped according to `strategy`.
+
+If no `strategy` is provided, the return-value of [`swapstrategy`](@ref) called on `sampler`
+is used.
 """
 function swap_step(
     rng::Random.AbstractRNG,
     model,
-    spl::TemperedSampler,
-    ts::TemperedState
+    sampler::TemperedSampler,
+    state::TemperedState
 )
-    L = length(ts.Δ) - 1
-    sampler = spl.internal_sampler
+    return swap_step(swapstrategy(sampler), rng, model, sampler, state)
+end
 
-    if spl.swap_strategy == :standard
+function swap_step(
+    strategy::StandardSwap,
+    rng::Random.AbstractRNG,
+    model,
+    sampler::TemperedSampler,
+    state::TemperedState
+)
+    L = numtemps(sampler) - 1
+    k = rand(rng, 1:L)
+    return swap_attempt(rng, model, sampler, state, k, sampler.adapt, state.total_steps / L)
+end
 
-        k = rand(rng, Distributions.Categorical(L))  # Pick randomly from 1, 2, ..., k - 1
-        ts = swap_attempt(model, sampler, ts, k, spl.adapt, ts.total_steps / L)
+function swap_step(
+    strategy::RandomPermutationSwap,
+    rng::Random.AbstractRNG,
+    model,
+    sampler::TemperedSampler,
+    state::TemperedState
+)
+    L = numtemps(sampler) - 1
+    levels = Vector{Int}(undef, L)
+    Random.randperm!(rng, levels)
 
-    else
-
-        # Define a vector to populate with levels at which to propose swaps according to swap_strategy
-        levels = Vector{Int}(undef, L)
-        if spl.swap_strategy == :nonrev
-            if ts.step_counter % (2 * spl.N_swap) == 0
-                levels = 1:2:L
-            else
-                levels = 2:2:L
-            end
-        elseif spl.swap_strategy == :randperm
-            randperm!(rng, levels)
-        end
-
-        for k in levels
-            ts = swap_attempt(model, sampler, ts, k, spl.adapt, ts.total_steps)
-        end
-
+    # Iterate through all levels and attempt swaps.
+    for k in levels
+        state = swap_attempt(rng, model, sampler, state, k, sampler.adapt, state.total_steps)
     end
-    return ts
+    return state
+end
+
+function swap_step(
+    strategy::NonReversibleSwap,
+    rng::Random.AbstractRNG,
+    model,
+    sampler::TemperedSampler,
+    state::TemperedState
+)
+    L = numtemps(sampler) - 1
+    # Alternate between swapping odds and evens.
+    levels = if state.total_steps % (2 * sampler.swap_every) == 0
+        1:2:L
+    else
+        2:2:L
+    end
+
+    # Iterate through all levels and attempt swaps.
+    for k in levels
+        # TODO: For this swapping strategy, we should really be using the adaptation from Syed et. al. (2019),
+        # but with the current one: shouldn't we at least divide `state.total_steps` by 2 since it will
+        # take use two swap-attempts before we have tried swapping all of them (in expectation).
+        state = swap_attempt(rng, model, sampler, state, k, sampler.adapt, state.total_steps)
+    end
+    return state
 end

@@ -1,81 +1,137 @@
 """
-    swap_betas(chain_index, k)
+    AbstractSwapStrategy
 
-Swaps the `k`th and `k + 1`th temperatures.
-Use `sortperm()` to convert the `chain_index` to a `Δ_index` to be used in tempering moves.
+Represents a strategy for swapping between parallel chains.
+
+A concrete subtype is expected to implement the method [`swap_step`](@ref).
 """
-function swap_betas(chain_index, k)
-    chain_index[k], chain_index[k + 1] = chain_index[k + 1], chain_index[k]
-    return sortperm(chain_index), chain_index
+abstract type AbstractSwapStrategy end
+
+"""
+    StandardSwap <: AbstractSwapStrategy
+
+At every swap step taken, this strategy samples a single chain index `i` and proposes
+a swap between chains `i` and `i + 1`.
+
+This approach goes under a number of names, e.g. Parallel Tempering (PT) MCMC and Replica-Exchange MCMC.[^PTPH05]
+
+# References
+[^PTPH05]: Earl, D. J., & Deem, M. W., Parallel tempering: theory, applications, and new perspectives, Physical Chemistry Chemical Physics, 7(23), 3910–3916 (2005).
+"""
+struct StandardSwap <: AbstractSwapStrategy end
+
+"""
+    RandomPermutationSwap <: AbstractSwapStrategy
+
+At every swap step taken, this strategy randomly shuffles all the chain indices
+and then iterates through them, proposing swaps for neighboring chains.
+"""
+struct RandomPermutationSwap <: AbstractSwapStrategy end
+
+
+"""
+    NonReversibleSwap <: AbstractSwapStrategy
+
+At every swap step taken, this strategy _deterministically_ traverses first the
+odd chain indices, proposing swaps between neighbors, and then in the _next_ swap step
+taken traverses even chain indices, proposing swaps between neighbors.
+
+See [^SYED19] for more on this approach.
+
+# References
+[^SYED19]: Syed, S., Bouchard-Côté, Alexandre, Deligiannidis, G., & Doucet, A., Non-reversible Parallel Tempering: A Scalable Highly Parallel MCMC Scheme, arXiv:1905.02939,  (2019).
+"""
+struct NonReversibleSwap <: AbstractSwapStrategy end
+
+"""
+    swap_betas!(chain_to_process, process_to_chain, k)
+
+Swaps the `k`th and `k + 1`th temperatures in place.
+"""
+function swap_betas!(chain_to_process, process_to_chain, k)
+    # TODO: Use BangBang's `@set!!` to also support tuples?
+    # Extract the process index for each of the chains.
+    process_for_chain_k, process_for_chain_kp1 = chain_to_process[k], chain_to_process[k + 1]
+
+    # Switch the mapping of the `chain → process` map.
+    # The temperature for the k-th chain will now be moved from its current process
+    # to the process for the (k + 1)-th chain, and vice versa.
+    chain_to_process[k], chain_to_process[k + 1] = process_for_chain_kp1, process_for_chain_k
+
+    # Swap the mapping of the `process → chain` map.
+    # The process that used to have the k-th chain, now has the (k+1)-th chain, and vice versa.
+    process_to_chain[process_for_chain_k], process_to_chain[process_for_chain_kp1] = k + 1, k
+    return chain_to_process, process_to_chain
 end
 
-function make_tempered_loglikelihood end
-function get_params end
-
 
 """
-    get_tempered_loglikelihoods_and_params(model, sampler, states, k, Δ, chain_index)
+    compute_tempered_logdensities(model, sampler, transition, transition_other, β)
+    compute_tempered_logdensities(model, sampler, sampler_other, transition, transition_other, state, state_other, β, β_other)
 
-Temper the `model`'s density using the `k`th and `k + 1`th temperatures 
-selected via `Δ` and `chain_index`. Then retrieve the parameters using the chains'
-current transitions extracted from the collection of `states`.
+Return `(logπ(transition, β), logπ(transition_other, β))` where `logπ(x, β)` denotes the
+log-density for `model` with inverse-temperature `β`.
 """
-function get_tempered_loglikelihoods_and_params(
-    model,
-    sampler::AbstractMCMC.AbstractSampler,
-    states,
-    k::Integer,
-    Δ::Vector{Real},
-    chain_index::Vector{<:Integer}
-)
-    
-    logπk = make_tempered_loglikelihood(model, Δ[k])
-    logπkp1 = make_tempered_loglikelihood(model, Δ[k + 1])
-    
-    θk = get_params(states[chain_index[k]][1])
-    θkp1 = get_params(states[chain_index[k + 1]][1])
-    
-    return logπk, logπkp1, θk, θkp1
+function compute_tempered_logdensities(model, sampler, sampler_other, transition, transition_other, state, state_other, β, β_other)
+    return compute_tempered_logdensities(model, sampler, transition, transition_other, β)
 end
 
-
 """
-    swap_acceptance_pt(logπk, logπkp1, θk, θkp1)
+    swap_acceptance_pt(logπk, logπkp1)
 
 Calculates and returns the swap acceptance ratio for swapping the temperature
 of two chains. Using tempered likelihoods `logπk` and `logπkp1` at the chains'
-current state parameters `θk` and `θkp1`.
+current state parameters.
 """
-function swap_acceptance_pt(logπk, logπkp1, θk, θkp1)
-    return min(
-        1,
-        exp(logπkp1(θk) + logπk(θkp1)) / exp(logπk(θk) + logπkp1(θkp1))
-        # exp(abs(βk - βkp1) * abs(AdvancedMH.logdensity(model, samplek) - AdvancedMH.logdensity(model, samplekp1)))
-    )
+function swap_acceptance_pt(logπk_θk, logπk_θkp1, logπkp1_θk, logπkp1_θkp1)
+    return (logπkp1_θk + logπk_θkp1) - (logπk_θk + logπkp1_θkp1)
 end
 
 
 """
-    swap_attempt(model, sampler, states, k, Δ, Δ_index)
+    swap_attempt(rng, model, sampler, state, k, adapt)
 
 Attempt to swap the temperatures of two chains by tempering the densities and
 calculating the swap acceptance ratio; then swapping if it is accepted.
 """
-function swap_attempt(model, sampler, ts, k, adapt, n)
+function swap_attempt(rng, model, sampler, state, k, adapt, total_steps)
+    # TODO: Allow arbitrary `k` rather than just `k + 1`.
+    # Extract the relevant transitions.
+    samplerk = sampler_for_chain(sampler, state, k)
+    samplerkp1 = sampler_for_chain(sampler, state, k + 1)
+    transitionk = transition_for_chain(state, k)
+    transitionkp1 = transition_for_chain(state, k + 1)
+    statek = state_for_chain(state, k)
+    statekp1 = state_for_chain(state, k + 1)
+    βk = β_for_chain(state, k)
+    βkp1 = β_for_chain(state, k + 1)
+    # Evaluate logdensity for both parameters for each tempered density.
+    logπk_θk, logπk_θkp1 = compute_tempered_logdensities(
+        model, samplerk, samplerkp1, transitionk, transitionkp1, statek, statekp1, βk, βkp1
+    )
+    logπkp1_θkp1, logπkp1_θk = compute_tempered_logdensities(
+        model, samplerkp1, samplerk, transitionkp1, transitionk, statekp1, statek, βkp1, βk
+    )
     
-    logπk, logπkp1, θk, θkp1 = get_tempered_loglikelihoods_and_params(model, sampler, ts.states, k, ts.Δ, ts.chain_index)
-    
-    swap_ar = swap_acceptance_pt(logπk, logπkp1, θk, θkp1)
-    U = rand(Distributions.Uniform(0, 1))
-
-    # If the proposed temperature swap is accepted according to swap_ar and U, swap the temperatures for future steps
-    if U ≤ swap_ar
-        ts.Δ_index, ts.chain_index = swap_betas(ts.chain_index, k)
+    # If the proposed temperature swap is accepted according `logα`,
+    # swap the temperatures for future steps.
+    logα = swap_acceptance_pt(logπk_θk, logπk_θkp1, logπkp1_θk, logπkp1_θkp1)
+    should_swap = -Random.randexp(rng) ≤ logα
+    if should_swap
+        swap_betas!(state.chain_to_process, state.process_to_chain, k)
     end
 
-    # Adaptation steps affects Ρ and Δ, as the Ρ is adapted before a new Δ is generated and returned
+    # Keep track of the (log) acceptance ratios.
+    state.swap_acceptance_ratios[k] = logα
+
+    # Adaptation steps affects `ρs` and `inverse_temperatures`, as the `ρs` is
+    # adapted before a new `inverse_temperatures` is generated and returned.
     if adapt
-        ts.Ρ, ts.Δ = adapt_ladder(ts.Ρ, ts.Δ, k, swap_ar, n)
+        ρs = adapt!!(
+            state.adaptation_states, state.inverse_temperatures, k, min(one(logα), exp(logα))
+        )
+        @set! state.adaptation_states = ρs
+        @set! state.inverse_temperatures = update_inverse_temperatures(ρs, state.inverse_temperatures)
     end
-    return ts
+    return state
 end

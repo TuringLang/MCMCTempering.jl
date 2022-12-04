@@ -1,8 +1,9 @@
+"""
+    make_tempered_model(sampler, model, args...)
 
-# struct TemperedModel <: AbstractPPL.AbstractProbabilisticProgram
-#     model :: DynamicPPL.Model
-#     β     :: AbstractFloat
-# end
+Return an instance representing a model.
 
+The return-type depends on its usage in [`compute_tempered_logdensities`](@ref).
+"""
 function make_tempered_model end
 

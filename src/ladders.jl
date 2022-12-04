@@ -1,52 +1,51 @@
 """
-    get_scaling_val(Nt, swap_strategy)
+    get_scaling_val(N_it, swap_strategy)
 
-Calculates the correct scaling factor for polynomial step size between temperatures
+Calculates a scaling factor for polynomial step size between inverse temperatures.
 """
-function get_scaling_val(Nt, swap_strategy)
-    # Why these?
-    if swap_strategy == :standard
-        scaling_val = Nt - 1
-    elseif swap_strategy == :nonrev
-        scaling_val = 2
-    else
-        scaling_val = 1
-    end
-    return scaling_val
-end
-
+get_scaling_val(N_it, ::StandardSwap) = N_it - 1
+get_scaling_val(N_it, ::NonReversibleSwap) = 2
+get_scaling_val(N_it, ::RandomPermutationSwap) = 1
 
 """
-    generate_Δ(Nt, swap_strategy)
+    generate_inverse_temperatures(N_it, swap_strategy)
 
-Returns a temperature ladder `Δ` containing `Nt` temperatures,
-generated in accordance with the chosen `swap_strategy`
+Returns a temperature ladder `Δ` containing `N_it` values,
+generated in accordance with the chosen `swap_strategy`.
 """
-function generate_Δ(Nt, swap_strategy)
-    scaling_val = get_scaling_val(Nt, swap_strategy)
-    Δ = zeros(Real, Nt)
-    Δ[1] = 1.0
-    β′ = Δ[1]
-    for i ∈ 1:(Nt - 1)
-        β′ += exp(scaling_val)
-        Δ[i + 1] = Δ[1] / β′
+function generate_inverse_temperatures(N_it, swap_strategy)
+    # Apparently, here we increase the temperature by a constant
+    # factor which depends on `swap_strategy`.
+    scaling_val = get_scaling_val(N_it, swap_strategy)
+    Δ = Vector{Float64}(undef, N_it)
+    Δ[1] = 1
+    T = Δ[1]
+    for i in 1:(N_it - 1)
+        T += scaling_val
+        Δ[i + 1] = inv(T)
     end
     return Δ
 end
 
 
 """
-    check_Δ(Δ)
+    check_inverse_temperatures(Δ)
 
 Checks and returns a sorted `Δ` containing `{β₀, ..., βₙ}` conforming such that `1 = β₀ > β₁ > ... > βₙ ≥ 0`
 """
-function check_Δ(Δ)
+function check_inverse_temperatures(Δ)
+    if length(Δ) <= 1
+        error("More than one inverse temperatures must be provided.")
+    end
     if !all(zero.(Δ) .≤ Δ .≤ one.(Δ))
-        error("Temperature schedule provided has values outside of the acceptable range, ensure all values are in [0, 1].")
+        error("The temperature ladder provided has values outside of the acceptable range, ensure all values are in [0, 1].")
     end
-    Δ = sort(Δ; rev=true)
-    if Δ[1] != one(Δ[1])
-        error("Δ must contain 1, as β₀.")
+    Δ_sorted = sort(Δ; rev=true)
+    if Δ_sorted[1] != one(Δ_sorted[1])
+        error("The temperature ladder must contain 1.")
     end
-    return Δ
+    if Δ_sorted != Δ
+        println("The temperature was sorted to ensure decreasing order.")
+    end
+    return Δ_sorted
 end

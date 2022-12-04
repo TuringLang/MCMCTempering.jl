@@ -4,15 +4,30 @@ import AbstractMCMC
 import Distributions
 import Random
 
+using ProgressLogging: ProgressLogging
+using ConcreteStructs: @concrete
+using Setfield: @set, @set!
+
+using InverseFunctions
+
+using DocStringExtensions
+
 include("adaptation.jl")
-include("tempered.jl")
+include("swapping.jl")
+include("state.jl")
+include("sampler.jl")
+include("sampling.jl")
 include("ladders.jl")
 include("stepping.jl")
 include("model.jl")
-include("swapping.jl")
-include("plotting.jl")
 
-export tempered, TemperedSampler, plot_swaps, plot_ladders, make_tempered_model, get_tempered_loglikelihoods_and_params, make_tempered_loglikelihood, get_params
+export tempered,
+    tempered_sample,
+    TemperedSampler,
+    make_tempered_model,
+    StandardSwap,
+    RandomPermutationSwap,
+    NonReversibleSwap
 
 function AbstractMCMC.bundle_samples(
     ts::Vector,
@@ -22,7 +37,10 @@ function AbstractMCMC.bundle_samples(
     chain_type::Type;
     kwargs...
 )
-    AbstractMCMC.bundle_samples(ts, model, sampler.internal_sampler, state, chain_type; kwargs...)
+    AbstractMCMC.bundle_samples(
+        ts, model, sampler_for_chain(sampler, state, 1), state_for_chain(state, 1), chain_type;
+        kwargs...
+    )
 end
 
 end
