@@ -1,7 +1,7 @@
 name = "MCMCTempering"
 uuid = "ce233488-44ea-4441-b732-192676ce2298"
 authors = ["Harrison Wilde <h.wilde@warwick.ac.uk> and contributors"]
-version = "0.1.1"
+version = "0.2"
 
 [deps]
 AbstractMCMC = "80f14c24-f653-4e6a-9b94-39d6b0f70001"
