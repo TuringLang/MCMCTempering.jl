@@ -6,8 +6,8 @@ using MCMCChains
 using Bijectors
 using LinearAlgebra
 using AbstractMCMC
+using LogDensityProblems: LogDensityProblems, logdensity, logdensity_and_gradient
 using LogDensityProblemsAD
-using MCMCTempering: LogDensityProblems
 using ForwardDiff: ForwardDiff
 using AdvancedMH: AdvancedMH
 using AdvancedHMC: AdvancedHMC
@@ -299,14 +299,25 @@ end
         # Construct the `LogDensityFunction` which supports LogDensityProblems.jl-interface.
         model = ADgradient(:ForwardDiff, DynamicPPL.LogDensityFunction(model_dppl, vi))
 
+        @testset "Tempering of models" begin
+            beta = 0.5
+            model_tempered = MCMCTempering.make_tempered_model(model, beta)
+            @test logdensity(model_tempered, init_params) ≈ beta * logdensity(model, init_params)
+            @test last(logdensity_and_gradient(model_tempered, init_params)) ≈
+                beta .* last(logdensity_and_gradient(model, init_params))
+        end
+
         @testset "AdvancedHMC.jl" begin
             num_iterations = 1_000
+
+            # Set up HMC smpler.
             initial_ϵ = 0.1
             integrator = AdvancedHMC.Leapfrog(initial_ϵ)
             proposal = AdvancedHMC.NUTS{AdvancedHMC.MultinomialTS, AdvancedHMC.GeneralisedNoUTurn}(integrator)
             metric = AdvancedHMC.DiagEuclideanMetric(LogDensityProblems.dimension(model))
             sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric)
 
+            # Sample using HMC.
             samples_hmc = sample(model, sampler_hmc, num_iterations; init_params=copy(init_params), progress=false)
             chain_hmc = AbstractMCMC.bundle_samples(
                 samples_hmc, MCMCTempering.maybe_wrap_model(model), sampler_hmc, samples_hmc[1], MCMCChains.Chains;
@@ -314,6 +325,7 @@ end
             )
             map_parameters!(b, chain_hmc)
 
+            # Sample using tempered HMC.
             chain_tempered = test_and_sample_model(
                 model,
                 sampler_hmc,
@@ -329,16 +341,19 @@ end
             )
             map_parameters!(b, chain_tempered)
 
-            # TODO: Make it not broken.
+            # TODO: Make it not broken, i.e. produce reasonable results.
             compare_chains(chain_hmc, chain_tempered, atol=0.1, compare_std=false, compare_ess=false, isbroken=true)
         end
         
         @testset "AdvancedMH.jl" begin
             num_iterations = 100_000
             d = LogDensityProblems.dimension(model)
+
+            # Set up MALA sampler.
             σ² = 1e-2
             sampler_mh = MALA(∇ -> MvNormal(σ² * ∇, 2σ² * I))
-            
+
+            # Sample using MALA.
             samples_mh = AbstractMCMC.sample(
                 model, sampler_mh, num_iterations;
                 init_params=copy(init_params), progress=false
@@ -349,6 +364,7 @@ end
             )
             map_parameters!(b, chain_mh)
 
+            # Sample using tempered MALA.
             chain_tempered = test_and_sample_model(
                 model,
                 sampler_mh,
@@ -363,7 +379,7 @@ end
             )
             map_parameters!(b, chain_tempered)
 
-            # TODO: Make it not broken.
+            # TODO: Make it not broken, i.e. produce reasonable results.
             compare_chains(chain_hmc, chain_tempered, atol=0.1, compare_std=false, compare_ess=false, isbroken=true)
         end
     end
