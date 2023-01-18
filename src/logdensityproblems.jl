@@ -1,4 +1,13 @@
+"""
+    TemperedLogDensityProblem
+
+A tempered log density function implementing the LogDensityProblem.jl interface.
+
+# Fields
+$(FIELDS)
+"""
 struct TemperedLogDensityProblem{L,T}
+    "underlying log density; assumed to implement LogDensityProblems.jl interface"
     logdensity::L
     beta::T
 end

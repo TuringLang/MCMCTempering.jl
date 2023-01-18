@@ -34,12 +34,16 @@ Several properties of the tempered sampler are tested before returning:
 - `swap_strategy`: The swap strategy to use.
 
 # Keyword arguments
-- `mean_swap_lower_bound`: A lower bound on the acceptance rate of swaps performed, e.g. if set to `0.1` then at least 10% of attempted swaps should be accepted. Defaults to `0.1`.
 - `num_iterations`: The number of iterations to run the sampler for. Defaults to `2_000`.
 - `swap_every`: The number of iterations between each swap attempt. Defaults to `2`.
 - `adapt_target`: The target acceptance rate for the swaps. Defaults to `0.234`.
 - `adapt_rtol`: The relative tolerance for the check of average swap acceptance rate and target swap acceptance rate. Defaults to `0.1`.
 - `adapt_atol`: The absolute tolerance for the check of average swap acceptance rate and target swap acceptance rate. Defaults to `0.05`.
+- `mean_swap_rate_bound`: A bound on the acceptance rate of swaps performed, e.g. if set to `0.1` and `compare_mean_swap_rate=≥` then at least 10% of attempted swaps should be accepted. Defaults to `0.1`.
+- `compare_mean_swap_rate`: a binary function for comparing average swap rate against `mean_swap_rate_bound`. Defaults to `≥`.
+- `init_params`: The initial parameters to use for the sampler. Defaults to `nothing`.
+- `param_names`: The names of the parameters in the chain; used to construct the resulting chain. Defaults to `missing`.
+- `progress`: Whether to show a progress bar. Defaults to `false`.
 - `kwargs...`: Additional keyword arguments to pass to `MCMCTempering.tempered`.
 """
 function test_and_sample_model(

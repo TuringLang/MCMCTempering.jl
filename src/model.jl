@@ -1,5 +1,5 @@
 """
-    make_tempered_model(sampler, model, args...)
+    make_tempered_model([sampler, ]model, beta)
 
 Return an instance representing a model.
 
