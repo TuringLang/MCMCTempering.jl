@@ -4,6 +4,7 @@ import AbstractMCMC
 import Distributions
 import Random
 
+using LogDensityProblems: LogDensityProblems
 using ProgressLogging: ProgressLogging
 using ConcreteStructs: @concrete
 using Setfield: @set, @set!
@@ -12,6 +13,7 @@ using InverseFunctions
 
 using DocStringExtensions
 
+include("logdensityproblems.jl")
 include("adaptation.jl")
 include("swapping.jl")
 include("state.jl")
@@ -29,8 +31,12 @@ export tempered,
     RandomPermutationSwap,
     NonReversibleSwap
 
+implements_logdensity(x) = LogDensityProblems.capabilities(x) !== nothing
+maybe_wrap_model(model) = implements_logdensity(model) ? AbstractMCMC.LogDensityModel(model) : model
+maybe_wrap_model(model::AbstractMCMC.LogDensityModel) = model
+
 function AbstractMCMC.bundle_samples(
-    ts::Vector,
+    ts::AbstractVector,
     model::AbstractMCMC.AbstractModel,
     sampler::TemperedSampler,
     state::TemperedState,
@@ -38,7 +44,7 @@ function AbstractMCMC.bundle_samples(
     kwargs...
 )
     AbstractMCMC.bundle_samples(
-        ts, model, sampler_for_chain(sampler, state, 1), state_for_chain(state, 1), chain_type;
+        ts, maybe_wrap_model(model), sampler_for_chain(sampler, state, 1), state_for_chain(state, 1), chain_type;
         kwargs...
     )
 end

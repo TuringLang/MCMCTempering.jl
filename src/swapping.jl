@@ -71,10 +71,24 @@ end
 
 Return `(logπ(transition, β), logπ(transition_other, β))` where `logπ(x, β)` denotes the
 log-density for `model` with inverse-temperature `β`.
+
+The default implementation assumes `model` implements the interface of LogDensityProblems.jl.
 """
-function compute_tempered_logdensities(model, sampler, sampler_other, transition, transition_other, state, state_other, β, β_other)
+function compute_tempered_logdensities(model, sampler, transition, transition_other, β)
+    tempered_model = make_tempered_model(sampler, model, β)
+    return (
+        _logdensity(tempered_model, getparams(transition)),
+        _logdensity(tempered_model, getparams(transition_other))
+    )
+end
+function compute_tempered_logdensities(
+    model, sampler, sampler_other, transition, transition_other, state, state_other, β, β_other
+)
     return compute_tempered_logdensities(model, sampler, transition, transition_other, β)
 end
+
+_logdensity(logdensity, x) = LogDensityProblems.logdensity(logdensity, x)
+_logdensity(model::AbstractMCMC.LogDensityModel, x) = LogDensityProblems.logdensity(model.logdensity, x)
 
 """
     swap_acceptance_pt(logπk, logπkp1)
