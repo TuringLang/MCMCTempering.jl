@@ -31,6 +31,7 @@ export tempered,
     RandomPermutationSwap,
     NonReversibleSwap
 
+# TODO: Should we make this trait-based instead?
 implements_logdensity(x) = LogDensityProblems.capabilities(x) !== nothing
 maybe_wrap_model(model) = implements_logdensity(model) ? AbstractMCMC.LogDensityModel(model) : model
 maybe_wrap_model(model::AbstractMCMC.LogDensityModel) = model
