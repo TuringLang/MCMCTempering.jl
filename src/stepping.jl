@@ -7,6 +7,11 @@ function should_swap(sampler::TemperedSampler, state::TemperedState)
     return state.total_steps % sampler.swap_every == 0
 end
 
+get_init_params(x, _)= x
+get_init_params(init_params::Nothing, _) = nothing
+get_init_params(init_params::AbstractVector{<:Real}, _) = copy(init_params)
+get_init_params(init_params::AbstractVector{<:AbstractVector{<:Real}}, i) = init_params[i]
+
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model,
@@ -29,7 +34,7 @@ function AbstractMCMC.step(
             rng,
             make_tempered_model(sampler, model, sampler.inverse_temperatures[i]),
             getsampler(sampler, i);
-            init_params=init_params !== nothing ? init_params[i] : nothing,
+            init_params=get_init_params(init_params, i),
             kwargs...
         )
         for i in 1:numtemps(sampler)

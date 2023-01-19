@@ -129,3 +129,16 @@ If `I...` is not specified, the β corresponding to `β=1.0` will be returned.
 Return the β corresponding to the process indexed by `I...`.
 """
 β_for_process(state::TemperedState, I...) = state.inverse_temperatures[I...]
+
+"""
+    getparams(transition)
+    getparams(::Type, transition)
+
+Return the parameters contained in `transition`.
+
+If a type is specified, the parameters are returned in said type.
+
+# Notes
+This method is meant to be overloaded for the different transitions types.
+"""
+function getparams end

@@ -1,14 +1,14 @@
 | :warning: WARNING          |
 |:---------------------------|
 
-This package is currently under development and non-functional. We anticipate the package will in working order by the end of summer 2022. Details below are subject to change.
+This package is currently under development and non-functional. Details below are subject to change.
 
 # MCMCTempering.jl
 
 MCMCTempering.jl implements simulated and parallel tempering, two methods for sampling from complex or multi-modal posteriors. These algorithms use temperature scheduling to flatten out the target distribution, making it easier to sample from.
 
 
-## Tutorial: Using MCMCTempering
+## Using MCMCTempering
 
 `MCMCTempering` stores temperature scheduling information in a special kind of `sampler`. We can temper a sampler by calling the `tempered` function on any `sampler` that supports `MCMCTempering`, which includes all the samplers in `AdvancedHMC` and `AdvancedMH`. Here's an example:
 
@@ -28,150 +28,60 @@ It's that easy! Increasing the number of steps will make sampling easier for the
 Enjoy your smooth sampling from multimodal posteriors!
 
 
-## Tutorial: Supporting MCMCTempering
+## Supporting MCMCTempering
 
 This package can easily be extended to support any sampler following the lightweight `AbstractMCMC` interface. This tutorial uses `AdvancedHMC` as an example of how to support `MCMCTempering`.
 
-### First Steps
+### The simple way
 
-1. Create a new file called `tempering.jl` which will contain all the functions required by `MCMCTempering`. 
-2. Add `MCMCTempering` as a dependency for your package.
-3. Add this code to your package:
+`AbstractMCMC.step` returns two things: a `transition` representing the state of the Markov chain, and a `state` representing the full state of the sampler. These are both kept track of internally and used by MCMCTempering.jl, and MCMCTempering.jl just needs a tiny bit of information on how to interact with these (in particular the latter one).
 
-```julia
-##### ...
-import MCMCTempering
-include("tempering.jl")
-export Joint, TemperedJoint, make_tempered_model, make_tempered_loglikelihood, get_params, step
-##### ...
-```
-
-Now we need to add these functions to `tempering.jl`.
-
-
-### Dialing up the temperature
-
-First, we need to be able to call the log-likelihood after multiplying by an inverse temperature `β`. To do this we define the `make_tempered_model` function, which returns an instance of the relevant model type. For `AdvancedHMC` this is a `DifferentiableDensityModel`, but this should be whatever model type your sampler expects. Note that we only want to multiply the log-likelihood by `β`, not the log-prior; to do this, we define two callabale structs, `Joint` and `TemperedJoint`, each of which contains a log-prior and log-likelihood (and a temperature constant `β` for `TemperedJoint`). We need this so we can pass only a joint density function to `AdvancedHMC`, instead of the two components we require for tempering. These `Joint` structs let us return the log-joint as expected when we call  `model`'s density:
+First we need to implement `MCMCTempering.getparams(transition)` so `MCMCTempering` knows how to extract parameters from the state of the Markov chain. Maybe it looks something like:
 
 ```julia
-struct Joint{Tℓprior, Tℓll} <: Function
-    ℓprior      :: Tℓprior
-    ℓlikelihood :: Tℓll
-end
-
-function (joint::Joint)(θ)
-    return joint.ℓprior(θ) .+ joint.ℓlikelihood(θ)
-end
-
-
-struct TemperedJoint{Tℓprior, Tℓll, T<:Real} <: Function
-    ℓprior      :: Tℓprior
-    ℓlikelihood :: Tℓll
-    β           :: Real
-end
-
-function (tj::TemperedJoint)(θ)
-    return tj.ℓprior(θ) .+ (tj.ℓlikelihood(θ) .* tj.β)
-end
-
-
-function MCMCTempering.make_tempered_model(
-    model::DifferentiableDensityModel,
-    β::Real
-)
-    ℓπ_β = TemperedJoint(model.ℓπ.ℓprior, model.ℓπ.ℓlikelihood, β)
-    ∂ℓπ∂θ_β = TemperedJoint(model.∂ℓπ∂θ.ℓprior, model.∂ℓπ∂θ.ℓlikelihood, β)
-    model_β = DifferentiableDensityModel(ℓπ_β, ∂ℓπ∂θ_β)
-    return model_β
-end
+MCMCTempering.getparams(transition::MyTransition) = transition.θ
 ```
 
-This gives us everything we need for `MCMCTempering` to adjust the temperature of the log-likelihood between steps.
+If your `model` type already implements [`LogDensityProblems.jl`](https://github.com/tpapp/LogDensityProblems.jl), that's it; **you're done!**
 
-
-### Carrying out temperature swap steps
-
-For the tempering specific "swap steps" between pairs of chains' temperature levels, we need a way to temper the log-likelihood of the model without changing the model itself. To do this we implement the `make_tempered_loglikelihood` function, which takes a `model` and temperature `β` as arguments before returning a tempered loglikelihood function `logπ(z)`.
+If it doesn't, then you also need to implement the following two methods:
 
 ```julia
-function MCMCTempering.make_tempered_loglikelihood(
-    model::DifferentiableDensityModel,
-    β::Real
-)
-    function logπ(z)
-        return model.ℓπ.ℓlikelihood(z) * β
-    end
-    return logπ
-end
+MCMCTempering.logdensity(model, x) = ...                # Compute the log-density of `model` at `x`.
+MCMCTempering.make_tempered_logdensity(model, β) = ...  # Return a tempered `model` which can be passed to `logdensity`.
 ```
 
-Now we need access to the current proposed parameter values. This should be a simple getter function that returns the parameter vector `θ`:
+Once that's done, you're good to go!
+
+### Improving performance
+
+When we're proposing a swap between the Markov chain targeting `model_left` with some temperature `β_left` and the chain targeting `model_right` with temperature `β_right`, we need to compute the following quantities (with the current realizations denoted `x_left` and `x_right`):
 
 ```julia
-function MCMCTempering.get_params(trans::Transition)
-    return trans.z.θ
-end
+logdensity(model_left, x_left)
+logdensity(model_right, x_right)
+logdensity(model_left, x_right)
+logdensity(model_right, x_left)
 ```
 
-You can also choose to implement a function called `get_tempered_loglikelihoods_and_params` that returns the densities and parameters for the `k`th and `k+1`th chains. The code below is the default "fallback" implementation of this function, which should work for most cases:
+which can be computationally expensive. 
+
+_But_ often the `transition` contains not only the current realization but also the log-density at that realization. In the above case, that means that for the first two quantities, i.e. `logdensity(model_left, x_left)` and `logdensity(model_right, x_right)`, we can just extract these from the corresponding Markov chain states `transition_left` and `transition_right`!
+
+To make use of such cached computations, one has to explicitly implement `MCMCTempering.compute_tempered_logdensities`:
 
 ```julia
-function get_tempered_loglikelihoods_and_params(
-    model,
-    sampler::AbstractMCMC.AbstractSampler,
-    states,
-    k::Integer,
-    Δ::Vector{Real},
-    Δ_state::Vector{<:Integer}
-)
-    
-    logπk = make_tempered_loglikelihood(model, Δ[Δ_state[k]])
-    logπkp1 = make_tempered_loglikelihood(model, Δ[Δ_state[k + 1]])
-    
-    θk = get_params(states[k][1])
-    θkp1 = get_params(states[k + 1][1])
-    
-    return logπk, logπkp1, θk, θkp1
-end
+help?> MCMCTempering.compute_tempered_logdensities
+  compute_tempered_logdensities(model, sampler, transition, transition_other, β)
+  compute_tempered_logdensities(model, sampler, sampler_other, transition, transition_other, state, state_other, β, β_other)
+
+  Return (logπ(transition, β), logπ(transition_other, β)) where logπ(x, β) denotes the log-density for model with
+  inverse-temperature β.
+
+  The default implementation extracts the parameters from the transitions using getparams and calls logdensity on the model
+  returned from make_tempered_model.
 ```
 
-Note that sometimes we do need to override this functionality. This is necessary in `Turing.jl`, for example, where the `sampler` and `VarInfo` are required to access the density and parameters:
+Here one can just extract the corresponding quantities instead of computing them, and thus avoiding two additional calls to `logdensity(model, x)`.
 
-```julia
-function MCMCTempering.get_tempered_loglikelihoods_and_params(
-    model::Model,
-    sampler::Sampler{<:TemperedAlgorithm},
-    states,
-    k::Integer,
-    Δ::Vector{Real},
-    Δ_state::Vector{<:Integer}
-)
-
-    logπk = MCMCTempering.make_tempered_loglikelihood(model, Δ[Δ_state[k]], sampler, get_vi(states[k][2]))
-    logπkp1 = MCMCTempering.make_tempered_loglikelihood(model, Δ[Δ_state[k + 1]], sampler, get_vi(states[k + 1][2]))
-    
-    θk = MCMCTempering.get_params(states[k][2], sampler)
-    θkp1 = MCMCTempering.get_params(states[k + 1][2], sampler)
-    
-    return logπk, logπkp1, θk, θkp1
-end
-
-
-function MCMCTempering.make_tempered_loglikelihood(model::Model, β::Real, sampler::DynamicPPL.Sampler, varinfo_init::DynamicPPL.VarInfo)
-    
-    function logπ(z)
-        varinfo = DynamicPPL.VarInfo(varinfo_init, sampler, z)
-        model(varinfo)
-        return DynamicPPL.getlogp(varinfo) * β
-    end
-
-    return logπ
-end
-
-get_vi(state::Union{HMCState,GibbsState,EmceeState,SMCState}) = state.vi
-get_vi(vi::DynamicPPL.VarInfo) = vi
-
-MCMCTempering.get_params(state, sampler::DynamicPPL.Sampler) = get_vi(state)[sampler]
-```
-
-This completes the tutorial.
+Temper away!

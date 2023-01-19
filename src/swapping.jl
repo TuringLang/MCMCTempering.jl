@@ -71,8 +71,20 @@ end
 
 Return `(logπ(transition, β), logπ(transition_other, β))` where `logπ(x, β)` denotes the
 log-density for `model` with inverse-temperature `β`.
+
+The default implementation extracts the parameters from the transitions using [`getparams`](@ref) 
+and calls [`logdensity`](@ref) on the model returned from [`make_tempered_model`](@ref).
 """
-function compute_tempered_logdensities(model, sampler, sampler_other, transition, transition_other, state, state_other, β, β_other)
+function compute_tempered_logdensities(model, sampler, transition, transition_other, β)
+    tempered_model = make_tempered_model(sampler, model, β)
+    return (
+        logdensity(tempered_model, getparams(transition)),
+        logdensity(tempered_model, getparams(transition_other))
+    )
+end
+function compute_tempered_logdensities(
+    model, sampler, sampler_other, transition, transition_other, state, state_other, β, β_other
+)
     return compute_tempered_logdensities(model, sampler, transition, transition_other, β)
 end
 
