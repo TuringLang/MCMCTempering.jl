@@ -10,17 +10,65 @@ MCMCTempering.jl implements simulated and parallel tempering, two methods for sa
 
 ## Using MCMCTempering
 
-`MCMCTempering` stores temperature scheduling information in a special kind of `sampler`. We can temper a sampler by calling the `tempered` function on any `sampler` that supports `MCMCTempering`, which includes all the samplers in `AdvancedHMC` and `AdvancedMH`. Here's an example:
+`MCMCTempering` stores temperature scheduling information in a special kind of `sampler`. We can temper a sampler by calling the `tempered` function on any `sampler` that supports `MCMCTempering`. Here's an example using :
 
 ```julia
-using MCMCTempering
+julia> using MCMCTempering
 
-const temperature_steps = 4
+julia> using AdvancedMH, Distributions, LogDensityProblems, MCMCChains
 
-sampler = NUTS()
-tempered_sampler = tempered(sampler, temperature_steps)
+julia> using Random, LinearAlgebra
 
-chain = sample(model, tempered_sampler, n_samples; discard_initial = n_adapts)
+julia> Random.seed!(42);
+
+julia> # Target of interest.
+       struct Problem end
+
+julia> LogDensityProblems.logdensity(::Problem, x) = loglikelihood(MixtureModel([Normal(0, 1), Normal(5, 1)]), x)
+
+julia> LogDensityProblems.dimension(::Problem) = 1
+
+julia> LogDensityProblems.capabilities(::Type{Problem}) = LogDensityProblems.LogDensityOrder{0}()
+
+julia> model = Problem();
+
+julia> # Make AdvancedMH.jl compatible with MCMCTempering.jl.
+       MCMCTempering.getparams(transition::AdvancedMH.Transition) = transition.params
+
+julia> # Set up our sampler with a joint multivariate Normal proposal.
+       sampler = RWMH(MvNormal(zeros(1), I));
+
+julia> tempered_sampler = tempered(sampler, 10);
+
+julia> # Sample from the posterior.
+       chain = sample(
+           model, tempered_sampler, 100_000;
+           discard_initial=50_000, chain_type=MCMCChains.Chains, param_names=["x"]
+       )
+Sampling 100%|██████████████████████████████████████████████████████████████████████████████████████| Time: 0:00:01
+Chains MCMC chain (100000×2×1 Array{Float64, 3}):
+
+Iterations        = 50001:1:150000
+Number of chains  = 1
+Samples per chain = 100000
+parameters        = x
+internals         = lp
+
+Summary Statistics
+  parameters      mean       std   naive_se      mcse        ess      rhat 
+      Symbol   Float64   Float64    Float64   Float64    Float64   Float64 
+
+           x    2.5146    7.8534     0.0248    0.2883   542.5238    1.0003
+
+Quantiles
+  parameters       2.5%     25.0%     50.0%     75.0%     97.5% 
+      Symbol    Float64   Float64   Float64   Float64   Float64 
+
+           x   -13.4900   -2.1491    2.5031    7.4361   17.8821
+
+
+julia> mean(MixtureModel([Normal(0, 1), Normal(5, 1)]))
+2.5
 ```
 
 It's that easy! Increasing the number of steps will make sampling easier for the sampler by avoiding any sudden changes in the posterior, but it'll also make the sampling take longer.
