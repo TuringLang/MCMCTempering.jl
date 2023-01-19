@@ -8,7 +8,7 @@ This package is currently under development and non-functional. Details below ar
 MCMCTempering.jl implements simulated and parallel tempering, two methods for sampling from complex or multi-modal posteriors. These algorithms use temperature scheduling to flatten out the target distribution, making it easier to sample from.
 
 
-## Tutorial: Using MCMCTempering
+## Using MCMCTempering
 
 `MCMCTempering` stores temperature scheduling information in a special kind of `sampler`. We can temper a sampler by calling the `tempered` function on any `sampler` that supports `MCMCTempering`, which includes all the samplers in `AdvancedHMC` and `AdvancedMH`. Here's an example:
 
@@ -28,7 +28,7 @@ It's that easy! Increasing the number of steps will make sampling easier for the
 Enjoy your smooth sampling from multimodal posteriors!
 
 
-## Tutorial: Supporting MCMCTempering
+## Supporting MCMCTempering
 
 This package can easily be extended to support any sampler following the lightweight `AbstractMCMC` interface. This tutorial uses `AdvancedHMC` as an example of how to support `MCMCTempering`.
 
