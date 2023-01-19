@@ -83,3 +83,5 @@ help?> MCMCTempering.compute_tempered_logdensities
 ```
 
 Here one can just extract the corresponding quantities instead of computing them, and thus avoiding two additional calls to `logdensity(model, x)`.
+
+Temper away!
