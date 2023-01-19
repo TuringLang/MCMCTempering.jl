@@ -30,7 +30,7 @@ Enjoy your smooth sampling from multimodal posteriors!
 
 ## Supporting MCMCTempering
 
-This package can easily be extended to support any sampler following the lightweight `AbstractMCMC` interface. This tutorial uses `AdvancedHMC` as an example of how to support `MCMCTempering`.
+This package can easily be extended to support any sampler following the lightweight `AbstractMCMC` interface.
 
 ### The simple way
 
