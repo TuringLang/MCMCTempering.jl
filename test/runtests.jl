@@ -384,7 +384,7 @@ end
             map_parameters!(b, chain_tempered)
 
             # TODO: Make it not broken, i.e. produce reasonable results.
-            compare_chains(chain_hmc, chain_tempered, atol=0.1, compare_std=false, compare_ess=false, isbroken=true)
+            compare_chains(chain_mh, chain_tempered, atol=0.1, compare_std=false, compare_ess=false, isbroken=true)
         end
     end
 end
