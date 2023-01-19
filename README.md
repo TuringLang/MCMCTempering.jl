@@ -1,7 +1,7 @@
 | :warning: WARNING          |
 |:---------------------------|
 
-This package is currently under development and non-functional. Details below are subject to change.
+This package is currently under development. Details below are subject to change.
 
 # MCMCTempering.jl
 
