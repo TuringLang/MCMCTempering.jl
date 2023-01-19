@@ -32,7 +32,7 @@ Enjoy your smooth sampling from multimodal posteriors!
 
 This package can easily be extended to support any sampler following the lightweight `AbstractMCMC` interface. This tutorial uses `AdvancedHMC` as an example of how to support `MCMCTempering`.
 
-### The simple way; getting started
+### The simple way
 
 `AbstractMCMC.step` returns two things: a `transition` representing the state of the Markov chain, and a `state` representing the full state of the sampler. These are both kept track of internally and used by MCMCTempering.jl, and MCMCTempering.jl just needs a tiny bit of information on how to interact with these (in particular the latter one).
 
