@@ -71,8 +71,6 @@ julia> mean(MixtureModel([Normal(0, 1), Normal(5, 1)]))
 2.5
 ```
 
-It's that easy! Increasing the number of steps will make sampling easier for the sampler by avoiding any sudden changes in the posterior, but it'll also make the sampling take longer.
-
 Enjoy your smooth sampling from multimodal posteriors!
 
 
