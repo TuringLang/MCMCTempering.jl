@@ -24,10 +24,10 @@ function tempered_sample(
     model,
     sampler::AbstractMCMC.AbstractSampler,
     N::Integer,
-    arg::Union{Integer, Vector{<:Real}};
+    it_arg::Union{Integer, Vector{<:Real}};
     kwargs...
 )
-    return tempered_sample(Random.default_rng(), model, sampler, N, arg; kwargs...)
+    return tempered_sample(Random.default_rng(), model, sampler, N, it_arg; kwargs...)
 end
 
 function tempered_sample(

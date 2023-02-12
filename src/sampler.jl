@@ -9,25 +9,19 @@ $(FIELDS)
 """
 @concrete struct TemperedSampler <: AbstractMCMC.AbstractSampler
     "sampler(s) used to target the tempered distributions"
-    sampler
+    internal
     "collection of inverse temperatures β; β[i] correponds i-th tempered model"
     inverse_temperatures
     "number of steps of `sampler` to take before proposing swaps"
     swap_every
     "the swap strategy that will be used when proposing swaps"
     swap_strategy
-    # TODO: This should be replaced with `P` just being some `NoAdapt` type.
-    "boolean flag specifying whether or not to adapt"
-    adapt
     "adaptation parameters"
-    adaptation_states
+    adaptation_config
 end
 
 swapstrategy(sampler::TemperedSampler) = sampler.swap_strategy
-
-getsampler(samplers, I...) = getindex(samplers, I...)
-getsampler(sampler::AbstractMCMC.AbstractSampler, I...) = sampler
-getsampler(sampler::TemperedSampler, I...) = getsampler(sampler.sampler, I...)
+get_sampler(sampler, I...) = sampler.internal[I...]
 
 """
     numsteps(sampler::TemperedSampler)
@@ -35,26 +29,6 @@ getsampler(sampler::TemperedSampler, I...) = getsampler(sampler.sampler, I...)
 Return number of inverse temperatures used by `sampler`.
 """
 numtemps(sampler::TemperedSampler) = length(sampler.inverse_temperatures)
-
-"""
-    sampler_for_chain(sampler::TemperedSampler, state::TemperedState[, I...])
-
-Return the sampler corresponding to the chain indexed by `I...`.
-If `I...` is not specified, the sampler corresponding to `β=1.0` will be returned.
-"""
-sampler_for_chain(sampler::TemperedSampler, state::TemperedState) = sampler_for_chain(sampler, state, 1)
-function sampler_for_chain(sampler::TemperedSampler, state::TemperedState, I...)
-    return getsampler(sampler.sampler, state.chain_to_process[I...])
-end
-
-"""
-    sampler_for_process(sampler::TemperedSampler, state::TemperedState, I...)
-
-Return the sampler corresponding to the process indexed by `I...`.
-"""
-function sampler_for_process(sampler::TemperedSampler, state::TemperedState, I...)
-    return getsampler(sampler.sampler, I...)
-end
 
 """
     tempered(sampler, inverse_temperatures; kwargs...)
@@ -89,25 +63,38 @@ function tempered(
     swap_strategy::AbstractSwapStrategy=StandardSwap(),
     kwargs...
 )
-    return tempered(sampler, generate_inverse_temperatures(N_it, swap_strategy); swap_strategy = swap_strategy, kwargs...)
+    return tempered(
+        sampler,
+        generate_inverse_temperatures(N_it, swap_strategy);
+        swap_strategy = swap_strategy,
+        kwargs...
+    )
 end
 function tempered(
     sampler::AbstractMCMC.AbstractSampler,
     inverse_temperatures::Vector{<:Real};
     swap_strategy::AbstractSwapStrategy=StandardSwap(),
-    swap_every::Integer=2,
-    adapt::Bool=false,
-    adapt_target::Real=0.234,
-    adapt_stepsize::Real=1,
-    adapt_eta::Real=0.66,
-    adapt_schedule=Geometric(),
+    swap_every::Integer=1,
+    adapt_schedule=NoAdapt(),
+    adapt_target_swap_ar::Real=0.234,
     adapt_scale=defaultscale(adapt_schedule, inverse_temperatures),
+    adapt_eta::Real=0.66,
+    adapt_stepsize::Real=1,
     kwargs...
 )
-    swap_every >= 2 || error("This must be a positive integer greater than 1.")
+    swap_every > 0 || error("This must be a positive integer.")
     inverse_temperatures = check_inverse_temperatures(inverse_temperatures)
-    adaptation_states = init_adaptation(
-        adapt_schedule, inverse_temperatures, adapt_target, adapt_scale, adapt_eta, adapt_stepsize
+    return TemperedSampler(
+        [sampler for _ in inverse_temperatures],
+        inverse_temperatures,
+        swap_every,
+        swap_strategy,
+        wrap_adaptation_config(
+            adapt_schedule,
+            adapt_target_swap_ar,
+            adapt_scale,
+            adapt_eta,
+            adapt_stepsize
+        )
     )
-    return TemperedSampler(sampler, inverse_temperatures, swap_every, swap_strategy, adapt, adaptation_states)
 end

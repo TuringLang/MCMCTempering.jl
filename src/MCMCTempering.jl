@@ -29,7 +29,9 @@ export tempered,
     make_tempered_model,
     StandardSwap,
     RandomPermutationSwap,
-    NonReversibleSwap
+    NonReversibleSwap,
+    NoSwap,
+    maybe_wrap_model
 
 # TODO: Should we make this trait-based instead?
 implements_logdensity(x) = LogDensityProblems.capabilities(x) !== nothing
@@ -45,7 +47,7 @@ function AbstractMCMC.bundle_samples(
     kwargs...
 )
     AbstractMCMC.bundle_samples(
-        ts, maybe_wrap_model(model), sampler_for_chain(sampler, state, 1), state_for_chain(state, 1), chain_type;
+        ts, maybe_wrap_model(model), get_sampler(sampler, state.chain_order[1]), get_state(state), chain_type;
         kwargs...
     )
 end

@@ -17,7 +17,7 @@ Moreover, suppose we also have 4 workers/processes for which we run these chains
 (can also be serial wlog).
 
 We can then perform a swap in two different ways:
-1. Swap the the _states_ between each process, i.e. permute `transitions_and_states`.
+1. Swap the the _states_ between each process, i.e. permute `internal_state`.
 2. Swap the _temperatures_ between each process, i.e. permute `inverse_temperatures`.
 
 (1) is possibly the most intuitive approach since it means that the i-th worker/process
@@ -52,24 +52,22 @@ Chains:    process_to_chain    chain_to_process   inverse_temperatures[process_t
 In this case, the chain `X` can be reconstructed as:
 
 ```julia
-X[1] = states[1].transitions_and_states[1]
-X[2] = states[2].transitions_and_states[2]
-X[3] = states[3].transitions_and_states[2]
-X[4] = states[4].transitions_and_states[3]
-X[5] = states[5].transitions_and_states[3]
+X[1] = states[1].internal_state[1]
+X[2] = states[2].internal_state[2]
+X[3] = states[3].internal_state[2]
+X[4] = states[4].internal_state[3]
+X[5] = states[5].internal_state[3]
 ```
 
 The indices here are exactly those represented by `states[k].chain_to_process[1]`.
 """
 @concrete struct TemperedState
-    "collection of `(transition, state)` pairs for each process"
-    transitions_and_states
-    "collection of (inverse) temperatures β corresponding to each process"
-    inverse_temperatures
-    "collection indices such that `chain_to_process[i] = j` if the j-th process corresponds to the i-th chain"
-    chain_to_process
-    "collection indices such that `process_chain_to[j] = i` if the i-th chain corresponds to the j-th process"
-    process_to_chain
+    "collection of `(transition, state)` pairs for each chain"
+    internal_state
+    "array of length equal to the number of parallel chains / temperatures, chain_order[i] = j tells us the j-th chain is tempered with the i-th β at this step, i.e. chain_order[1] always returns the valid chain to take a sample from"
+    chain_order
+    "dict of chain ids and their corresponding β"
+    chain_to_inverse_temperature_map
     "total number of steps taken"
     total_steps
     "number of burn-in steps taken"
@@ -82,53 +80,12 @@ The indices here are exactly those represented by `states[k].chain_to_process[1]
     swap_acceptance_ratios
 end
 
-"""
-    transition_for_chain(state[, I...])
-
-Return the transition corresponding to the chain indexed by `I...`.
-If `I...` is not specified, the transition corresponding to `β=1.0` will be returned, i.e. `I = (1, )`.
-"""
-transition_for_chain(state::TemperedState) = transition_for_chain(state, 1)
-transition_for_chain(state::TemperedState, I...) = state.transitions_and_states[state.chain_to_process[I...]][1]
-
-"""
-    transition_for_process(state, I...)
-
-Return the transition corresponding to the process indexed by `I...`.
-"""
-transition_for_process(state::TemperedState, I...) = state.transitions_and_states[I...][1]
-
-"""
-    state_for_chain(state[, I...])
-
-Return the state corresponding to the chain indexed by `I...`.
-If `I...` is not specified, the state corresponding to `β=1.0` will be returned.
-"""
-state_for_chain(state::TemperedState) = state_for_chain(state, 1)
-state_for_chain(state::TemperedState, I...) = state.transitions_and_states[I...][2]
-
-"""
-    state_for_process(state, I...)
-
-Return the state corresponding to the process indexed by `I...`.
-"""
-state_for_process(state::TemperedState, I...) = state.transitions_and_states[I...][2]
-
-"""
-    β_for_chain(state[, I...])
-
-Return the β corresponding to the chain indexed by `I...`.
-If `I...` is not specified, the β corresponding to `β=1.0` will be returned.
-"""
-β_for_chain(state::TemperedState) = β_for_chain(state, 1)
-β_for_chain(state::TemperedState, I...) = state.inverse_temperatures[state.chain_to_process[I...]]
-
-"""
-    β_for_process(state, I...)
-
-Return the β corresponding to the process indexed by `I...`.
-"""
-β_for_process(state::TemperedState, I...) = state.inverse_temperatures[I...]
+get_state(state) = state.internal_state[state.chain_order[1]][2]
+get_state(state, I...) = state.internal_state[I...][2]
+get_transition(state) = state.internal_state[state.chain_order[1]][1]
+get_transition(state, I...) = state.internal_state[I...][1]
+get_transition_params(state, I...) = getparams(get_transition(state, I...))
+get_inverse_temperature(state, I...) = state.chain_to_inverse_temperature_map[I...]
 
 """
     getparams(transition)
@@ -142,3 +99,17 @@ If a type is specified, the parameters are returned in said type.
 This method is meant to be overloaded for the different transitions types.
 """
 function getparams end
+
+function init_state(internal_state, chain_order, sampler)
+    return TemperedState(
+        internal_state,
+        chain_order,
+        Dict(chain_order .=> sampler.inverse_temperatures),
+        1,
+        0,
+        sampler.adaptation_config.schedule == NoAdapt() ? nothing : init_adaptation(sampler.adaptation_config, sampler.inverse_temperatures),
+        false,
+        Dict{Int,Float64}()
+    )
+end
+

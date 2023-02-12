@@ -1,5 +1,23 @@
 using Distributions: StatsFuns
 
+struct AdaptationConfig{S,T1<:Real,T2<:Real,T3<:Real,T4<:Real}
+    schedule::S
+    target_swap_ar::T1
+    scale::T2
+    eta::T3
+    stepsize::T4
+end
+
+function wrap_adaptation_config(
+    schedule,
+    target_swap_ar::Real,
+    scale::Real,
+    eta::Real,
+    stepsize::Real
+)
+    return AdaptationConfig(schedule, target_swap_ar, scale, eta, stepsize)
+end
+
 @concrete struct PolynomialStep
     η
     c
@@ -7,6 +25,18 @@ end
 function get(step::PolynomialStep, k::Real)
     return step.c * (k + 1) ^ (-step.η)
 end
+
+"""
+    NoAdapt
+
+Struct to turn off adaptation.
+
+See also: [`AdaptiveState`](@ref), [`update_inverse_temperatures`](@ref), and
+[`weight`](@ref).
+"""
+struct NoAdapt end
+
+defaultscale(::NoAdapt, Δ) = eltype(Δ)(0.9)
 
 """
     Geometric
@@ -34,18 +64,18 @@ defaultscale(::InverselyAdditive, Δ) = eltype(Δ)(0.9)
 
 struct AdaptiveState{S,T1<:Real,T2<:Real,P<:PolynomialStep}
     schedule_type::S
-    swap_target_ar::T1
+    target_swap_ar::T1
     scale_unconstrained::T2
-    step::P
-    n::Int
+    eta::P
+    stepsize::Int
 end
 
-function AdaptiveState(swap_target_ar, scale_unconstrained, step)
-    return AdaptiveState(InverselyAdditive(), swap_target_ar, scale_unconstrained, step)
+function AdaptiveState(target_swap_ar, scale_unconstrained, step)
+    return AdaptiveState(InverselyAdditive(), target_swap_ar, scale_unconstrained, step)
 end
 
-function AdaptiveState(schedule_type, swap_target_ar, scale_unconstrained, step)
-    return AdaptiveState(schedule_type, swap_target_ar, scale_unconstrained, step, 1)
+function AdaptiveState(schedule_type, target_swap_ar, scale_unconstrained, step)
+    return AdaptiveState(schedule_type, target_swap_ar, scale_unconstrained, step, 1)
 end
 
 """
@@ -86,41 +116,21 @@ inversely_additive_weight_constrain(x) = exp(-x)
 inversely_additive_weight_unconstrain(y) = -log(y)
 
 function init_adaptation(
-    schedule::InverselyAdditive,
+    config::AdaptationConfig,
     Δ::Vector{<:Real},
-    swap_target::Real,
-    scale::Real,
-    η::Real,
-    stepsize::Real
 )
-    N_it = length(Δ)
-    step = PolynomialStep(η, stepsize)
+    step = PolynomialStep(config.eta, config.stepsize)
     # TODO: One common state or one per temperature?
     # ρs = [
-    #     AdaptiveState(schedule, swap_target, inversely_additive_weight_unconstrain(scale), step)
-    #     for _ in 1:(N_it - 1)
+    #     AdaptiveState(schedule, target_swap_ar, inversely_additive_weight_unconstrain(scale), step)
+    #     for _ in 1:(length(Δ) - 1)
     # ]
-    ρs = AdaptiveState(schedule, swap_target, log(scale), step)
-    return ρs
-end
-
-function init_adaptation(
-    schedule::Geometric,
-    Δ::Vector{<:Real},
-    swap_target::Real,
-    scale::Real,
-    η::Real,
-    stepsize::Real
-)
-    N_it = length(Δ)
-    step = PolynomialStep(η, stepsize)
-    # TODO: One common state or one per temperature?
-    # ρs = [
-    #     AdaptiveState(schedule, swap_target, geometric_weight_unconstrain(scale), step)
-    #     for _ in 1:(N_it - 1)
-    # ]
-    ρs = AdaptiveState(schedule, swap_target, geometric_weight_unconstrain(scale), step)
-    return ρs
+    scale = if config.schedule == Geometric()
+        geometric_weight_unconstrain(config.scale)
+    elseif config.schedule == InverselyAdditive()
+        log(config.scale)
+    end
+    return AdaptiveState(config.schedule, config.target_swap_ar, scale, step)
 end
 
 
@@ -133,7 +143,7 @@ See [`update_inverse_temperatures`](@ref) to see how we compute the resulting
 inverse temperatures from the adapted state `ρ`.
 """
 function adapt!!(ρ::AdaptiveState, swap_ar)
-    swap_diff = ρ.swap_target_ar - swap_ar
+    swap_diff = ρ.target_swap_ar - swap_ar
     γ = get(ρ.step, ρ.n)
     ρ_new = @set ρ.scale_unconstrained = ρ.scale_unconstrained + γ * swap_diff
     return @set ρ_new.n += 1

@@ -29,54 +29,35 @@ function AbstractMCMC.step(
     # 
     # Therefore we iterate over the processes and then extract the corresponding
     # `β`, `sampler` and `state`, and take a initialize.
-    transitions_and_states = [
+    internal_state = [
         AbstractMCMC.step(
             rng,
-            make_tempered_model(sampler, model, sampler.inverse_temperatures[i]),
-            getsampler(sampler, i);
+            make_tempered_model(model, sampler.inverse_temperatures[i]),
+            get_sampler(sampler, i);
             init_params=get_init_params(init_params, i),
             kwargs...
         )
         for i in 1:numtemps(sampler)
     ]
-
-    # Make sure to collect, because we'll be using `setindex!(!)` later.
-    process_to_chain = collect(1:length(sampler.inverse_temperatures))
-    # Need to `copy` because this might be mutated.
-    chain_to_process = copy(process_to_chain)
-    state = TemperedState(
-        transitions_and_states,
-        sampler.inverse_temperatures,
-        process_to_chain,
-        chain_to_process,
-        1,
-        0,
-        sampler.adaptation_states,
-        false,
-        Dict{Int,Float64}()
-    )
+    state = init_state(internal_state, collect(1:numtemps(sampler)), sampler)
 
     if N_burnin > 0
         AbstractMCMC.@ifwithprogresslogger burnin_progress name = "Burn-in" begin
-            # Determine threshold values for progress logging
-            # (one update per 0.5% of progress)
             if burnin_progress
                 threshold = N_burnin ÷ 200
                 next_update = threshold
             end
-
             for i in 1:N_burnin
                 if burnin_progress && i >= next_update
                     ProgressLogging.@logprogress i / N_burnin
                     next_update = i + threshold
                 end
-                state = no_swap_step(rng, model, sampler, state; kwargs...)
+                state = step(rng, model, sampler, state; kwargs...)
                 @set! state.burnin_steps += 1
             end
         end
     end
-
-    return transition_for_chain(state), state
+    return get_transition(state), state
 end
 
 function AbstractMCMC.step(
@@ -86,24 +67,23 @@ function AbstractMCMC.step(
     state::TemperedState;
     kwargs...
 )
-    # Reset.
+    # Reset
     @set! state.swap_acceptance_ratios = empty(state.swap_acceptance_ratios)
+    @set! state.is_swap = false
 
     if should_swap(sampler, state)
-        state = swap_step(rng, model, sampler, state)
+        state = swap(rng, model, sampler, state)
         @set! state.is_swap = true
-    else
-        state = no_swap_step(rng, model, sampler, state; kwargs...)
-        @set! state.is_swap = false
     end
 
+    state = step(rng, model, sampler, state; kwargs...)
     @set! state.total_steps += 1
 
-    # We want to return the transition for the _first_ chain, i.e. the chain usually corresponding to `β=1.0`.
-    return transition_for_chain(state), state
+    # We want to return the transition for the chain corresponding to `β = 1.0`
+    return get_transition(state), state
 end
 
-function no_swap_step(
+function step(
     rng::Random.AbstractRNG,
     model,
     sampler::TemperedSampler,
@@ -117,38 +97,37 @@ function no_swap_step(
     # 
     # Therefore we iterate over the processes and then extract the corresponding
     # `β`, `sampler` and `state`, and take a step.
-    @set! state.transitions_and_states = [
+    @set! state.internal_state = [
         AbstractMCMC.step(
             rng,
-            make_tempered_model(sampler, model, β_for_process(state, i)),
-            sampler_for_process(sampler, state, i),
-            state_for_process(state, i);
+            make_tempered_model(model, get_inverse_temperature(state, i)),
+            get_sampler(sampler, i),
+            get_state(state, i);
             kwargs...
         )
         for i in 1:numtemps(sampler)
     ]
-
     return state
 end
 
 """
-    swap_step([strategy::AbstractSwapStrategy, ]rng, model, sampler, state)
+    swap([strategy::AbstractSwapStrategy, ]rng, model, sampler, state)
 
 Return new `state`, now with temperatures swapped according to `strategy`.
 
 If no `strategy` is provided, the return-value of [`swapstrategy`](@ref) called on `sampler`
 is used.
 """
-function swap_step(
+function swap(
     rng::Random.AbstractRNG,
     model,
     sampler::TemperedSampler,
     state::TemperedState
 )
-    return swap_step(swapstrategy(sampler), rng, model, sampler, state)
+    return swap(swapstrategy(sampler), rng, model, sampler, state)
 end
 
-function swap_step(
+function swap(
     strategy::StandardSwap,
     rng::Random.AbstractRNG,
     model,
@@ -157,10 +136,10 @@ function swap_step(
 )
     L = numtemps(sampler) - 1
     k = rand(rng, 1:L)
-    return swap_attempt(rng, model, sampler, state, k, sampler.adapt, state.total_steps / L)
+    return swap_attempt(rng, model, state, k)
 end
 
-function swap_step(
+function swap(
     strategy::RandomPermutationSwap,
     rng::Random.AbstractRNG,
     model,
@@ -173,12 +152,12 @@ function swap_step(
 
     # Iterate through all levels and attempt swaps.
     for k in levels
-        state = swap_attempt(rng, model, sampler, state, k, sampler.adapt, state.total_steps)
+        state = swap_attempt(rng, model, state, k)
     end
     return state
 end
 
-function swap_step(
+function swap(
     strategy::NonReversibleSwap,
     rng::Random.AbstractRNG,
     model,
@@ -198,7 +177,17 @@ function swap_step(
         # TODO: For this swapping strategy, we should really be using the adaptation from Syed et. al. (2019),
         # but with the current one: shouldn't we at least divide `state.total_steps` by 2 since it will
         # take use two swap-attempts before we have tried swapping all of them (in expectation).
-        state = swap_attempt(rng, model, sampler, state, k, sampler.adapt, state.total_steps)
+        state = swap_attempt(rng, model, state, k)
     end
+    return state
+end
+
+function swap(
+    strategy::NoSwap,
+    rng::Random.AbstractRNG,
+    model,
+    sampler::TemperedSampler,
+    state::TemperedState
+)
     return state
 end
