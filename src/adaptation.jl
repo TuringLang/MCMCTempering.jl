@@ -63,8 +63,8 @@ struct AdaptiveState{S,T1<:Real,T2<:Real,P<:PolynomialStep}
     schedule_type::S
     target_swap_ar::T1
     scale_unconstrained::T2
-    eta::P
-    stepsize::Int
+    step::P
+    n::Int
 end
 
 function AdaptiveState(target_swap_ar, scale_unconstrained, step)
