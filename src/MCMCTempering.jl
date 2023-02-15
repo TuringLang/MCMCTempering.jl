@@ -49,7 +49,11 @@ function AbstractMCMC.bundle_samples(
     kwargs...
 )
     AbstractMCMC.bundle_samples(
-        ts, maybe_wrap_model(model), get_sampler(sampler, state.chain_order[1]), get_state(state, state.chain_order[1]), chain_type;
+        ts,
+        maybe_wrap_model(model),
+        get_sampler(sampler, state.chain_order[1]),
+        get_state(state, state.chain_order[1]),
+        chain_type;
         kwargs...
     )
 end

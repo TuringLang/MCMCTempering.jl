@@ -124,7 +124,7 @@ end
 """
     swap([strategy::AbstractSwapStrategy, ]rng, model, sampler, state)
 
-Return a new `state`, now with temperatures swapped according to `strategy`.
+Return a new `state`, with temperatures potentially swapped according to `strategy`.
 
 If no `strategy` is provided, the return-value of [`swapstrategy`](@ref) called on `sampler`
 is used.
@@ -177,8 +177,8 @@ function swap(
     sampler::TemperedSampler,
     state::TemperedState
 )
-    # Select one index `k` of the temperature ladder and
-    # swap the corresponding chain and its neighbour
+    # Randomly pick one index `k` of the temperature ladder and
+    # attempt a swap between the corresponding chain and its neighbour
     k = rand(rng, 1:(numtemps(sampler) - 1))
     return swap_attempt(rng, model, state, k, k + 1)
 end
