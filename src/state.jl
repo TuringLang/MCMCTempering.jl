@@ -70,9 +70,9 @@ Chains:     chain_order     chain_to_inverse_temperature_map     is_swap    tota
     burnin_steps
     "contains all necessary information for adaptation of inverse_temperatures"
     adaptation_states
-    "array of flags that identifies swaps carried out during each step"
+    "array of flags identifying swaps carried out during each step"
     is_swap
-    "array of flags that identifies which chains are stale, i.e. have not had a succesful proposal since swapping"
+    "array of flags identifying which chains are stale, i.e. have not had a succesful proposal since swapping"
     is_stale
     "swap acceptance ratios on log-scale"
     swap_acceptance_ratios
