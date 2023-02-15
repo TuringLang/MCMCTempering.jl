@@ -9,62 +9,58 @@ $(FIELDS)
 
 # Description
 
-Suppose we're running 4 chains `X`, `Y`, `Z`, and `W`, each targeting a distribution for different
-(inverse) temperatures `β`, say, `1.0`, `0.75`, `0.5`, and `0.25`, respectively. That is, we're mainly 
-interested in the chain `(X[1], X[2], … )` which targets the distribution with `β=1.0`.
+Suppose we're running 3 chains `X`, `Y` and `Z`, that each target a different
+tempered density and explore it using an MCMC sampler / kernel, where the (inverse)
+temperatures are given by `β = [1.0, 0.05, 0.0025]`.
 
-Moreover, suppose we also have 4 workers/processes for which we run these chains in "parallel"
-(can also be serial wlog).
+We are primarily interested in the sequence of states corresponding to `β = 1.0`.
 
-We can then perform a swap in two different ways:
-1. Swap the the _states_ between each process, i.e. permute `internal_state`.
-2. Swap the _temperatures_ between each process, i.e. permute `inverse_temperatures`.
+Moreover, suppose we also have 3 workers/processes for which we run these chains in
+"parallel" (can also be serial wlog); the other states and chains running in parallel 
+will aid in mixing and full exploration of the "cold" target distribution through swap
+moves between chains.
 
-(1) is possibly the most intuitive approach since it means that the i-th worker/process
-corresponds to the i-th chain; in this case, process 1 corresponds to `X`, process 2 to `Y`, etc.
-The downside is that we need to move (potentially high-dimensional) states between the 
-workers/processes.
+We can perform these swaps in two different ways:
+1. Swap the the _states_ between each process, i.e. permute `internal`.
+2. Swap the _temperatures_ between each process, i.e. permute `chain_order` and
+   update `chain_to_inverse_temperature_map`.
 
-(2) on the other hand does _not_ preserve the direct process-chain correspondance.
-We now need to keep track of which process has which chain, from this we can
-reconstruct each of the chains `X`, `Y`, etc. afterwards.
-This means that we need only transfer a pair of numbers representing the (inverse)
-temperatures between workers rather than the full states.
+(1) is possibly the most intuitive approach since it would allow for the `i`th worker/process
+to correspond to the `i`th inverse temperature in our ladder => we could simply return 
+the valid samples corresponding to the 1st worker/process/`internal` entry to recover our
+target samples. The downside is that we need to move (potentially high-dimensional) states
+between the workers/processes to achieve this.
+
+(2) on the other hand does _not_ preserve the direct process-temperature correspondance.
+We now need to keep track of which chain is applying which temperature and at each step
+provide that temperature to generate a tempered log density for the exploratory kernel to
+proceed. This means that we need only transfer a pair of numbers representing the (inverse)
+temperatures between workers rather than the full states, as the state will simply be
+acted upon by whatever the current relevant (inverse) temperature is for that worker/process.
 
 This implementation follows approach (2).
 
 Here's an exemplar realisation of five steps of sampling and swap-attempts:
 
 ```
-Chains:    process_to_chain    chain_to_process   inverse_temperatures[process_to_chain[i]]
-| | | |       1  2  3  4          1  2  3  4             1.00  0.75  0.50  0.25
-| | | |
- V  | |       2  1  3  4          2  1  3  4             0.75  1.00  0.50  0.25
- Λ  | |
-| | | |       2  1  3  4          2  1  3  4             0.75  1.00  0.50  0.25
-| | | |
-|  V  |       2  3  1  4          3  1  2  4             0.75  0.50  1.00  0.25
-|  Λ  |
-| | | |       2  3  1  4          3  1  2  4             0.75  0.50  1.00  0.25
-| | | |
+Chains:     chain_order     chain_to_inverse_temperature_map     is_swap    total_steps
+| | |
+| | |       [1, 2, 3]       {1 => 1.0, 2 => 0.05, 3 => 0.0025}   false      1
+ V  |
+ Λ  |       [2, 1, 3]       {1 => 0.05, 2 => 1.0, 3 => 0.0025}   true       2
+| | |
+| | |       [2, 1, 3]       {1 => 0.05, 2 => 1.0, 3 => 0.0025}   false      3
+|  V 
+|  Λ        [2, 3, 1]       {1 => 0.0025, 2 => 1.0, 3 => 0.05}   true       4
+| | |
+| | |       [2, 3, 1]       {1 => 0.0025, 2 => 1.0, 3 => 0.05}   false      5
 ```
 
-In this case, the chain `X` can be reconstructed as:
-
-```julia
-X[1] = states[1].internal_state[1]
-X[2] = states[2].internal_state[2]
-X[3] = states[3].internal_state[2]
-X[4] = states[4].internal_state[3]
-X[5] = states[5].internal_state[3]
-```
-
-The indices here are exactly those represented by `states[k].chain_to_process[1]`.
 """
 @concrete struct TemperedState
     "collection of `(transition, state)` pairs for each chain"
-    internal_state
-    "array of length equal to the number of parallel chains / temperatures, chain_order[i] = j tells us the j-th chain is tempered with the i-th β at this step, i.e. chain_order[1] always returns the valid chain to take a sample from"
+    internal
+    "array of length equal to the number of parallel chains / temperatures, chain_order[i] = j tells us the j-th chain is tempered with the `i`th β at this step, i.e. chain_order[1] always returns the valid chain to take a sample from"
     chain_order
     "dict of chain ids and their corresponding β"
     chain_to_inverse_temperature_map
@@ -74,17 +70,18 @@ The indices here are exactly those represented by `states[k].chain_to_process[1]
     burnin_steps
     "contains all necessary information for adaptation of inverse_temperatures"
     adaptation_states
-    "flag which specifies wether this was a swap-step or not"
+    "array of flags that identifies swaps carried out during each step"
     is_swap
+    "array of flags that identifies which chains are stale, i.e. have not had a succesful proposal since swapping"
+    is_stale
     "swap acceptance ratios on log-scale"
     swap_acceptance_ratios
 end
 
-get_state(state) = state.internal_state[state.chain_order[1]][2]
-get_state(state, I...) = state.internal_state[I...][2]
-get_transition(state) = state.internal_state[state.chain_order[1]][1]
-get_transition(state, I...) = state.internal_state[I...][1]
+get_state(state, I...) = state.internal[I...][2]
+get_transition(state, I...) = state.internal[I...][1]
 get_transition_params(state, I...) = getparams(get_transition(state, I...))
+get_fresh_transition(state) = state.is_stale[state.chain_order[1]] ? nothing : state.internal[state.chain_order[1]][1]
 get_inverse_temperature(state, I...) = state.chain_to_inverse_temperature_map[I...]
 
 """
@@ -100,15 +97,31 @@ This method is meant to be overloaded for the different transitions types.
 """
 function getparams end
 
-function init_state(internal_state, chain_order, sampler)
+"""
+    init_state(internal, sampler)
+
+Given an initial `internal` set of transitions and states, instantiate the
+`TemperedState` for the run.
+
+- `total_steps` is set to 1 (as the initial steps have already happened)
+- `burnin_steps` is set to 0
+- `is_swap` and `is_stale` are initially false for all chains
+
+See [`TemperedState`](@ref) for info on the struct that is instantiated.
+"""
+function init_state(
+    internal,
+    sampler
+)
     return TemperedState(
-        internal_state,
-        chain_order,
-        Dict(chain_order .=> sampler.inverse_temperatures),
+        internal,
+        collect(1:numtemps(sampler)),
+        Dict(collect(1:numtemps(sampler)) .=> sampler.inverse_temperatures),
         1,
         0,
-        sampler.adaptation_config.schedule == NoAdapt() ? nothing : init_adaptation(sampler.adaptation_config, sampler.inverse_temperatures),
-        false,
+        init_adaptation(sampler.adaptation_config, sampler.inverse_temperatures),
+        [false for i in 1:numtemps(sampler)],
+        [false for i in 1:numtemps(sampler)],
         Dict{Int,Float64}()
     )
 end

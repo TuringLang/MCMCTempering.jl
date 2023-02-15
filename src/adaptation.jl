@@ -1,6 +1,6 @@
 using Distributions: StatsFuns
 
-struct AdaptationConfig{S,T1<:Real,T2<:Real,T3<:Real,T4<:Real}
+struct AdaptationConfig{S,T1<:Real,T2<:Union{Real, Nothing},T3<:Real,T4<:Real}
     schedule::S
     target_swap_ar::T1
     scale::T2
@@ -11,7 +11,7 @@ end
 function wrap_adaptation_config(
     schedule,
     target_swap_ar::Real,
-    scale::Real,
+    scale::Union{Real, Nothing},
     eta::Real,
     stepsize::Real
 )
@@ -30,13 +30,10 @@ end
     NoAdapt
 
 Struct to turn off adaptation.
-
-See also: [`AdaptiveState`](@ref), [`update_inverse_temperatures`](@ref), and
-[`weight`](@ref).
 """
 struct NoAdapt end
 
-defaultscale(::NoAdapt, Δ) = eltype(Δ)(0.9)
+defaultscale(::NoAdapt, Δ) = nothing
 
 """
     Geometric
@@ -119,6 +116,9 @@ function init_adaptation(
     config::AdaptationConfig,
     Δ::Vector{<:Real},
 )
+    if config.schedule == NoAdapt()
+        return nothing
+    end
     step = PolynomialStep(config.eta, config.stepsize)
     # TODO: One common state or one per temperature?
     # ρs = [
@@ -132,7 +132,6 @@ function init_adaptation(
     end
     return AdaptiveState(config.schedule, config.target_swap_ar, scale, step)
 end
-
 
 """
     adapt!!(ρ::AdaptiveState, swap_ar)

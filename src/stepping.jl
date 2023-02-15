@@ -21,15 +21,11 @@ function AbstractMCMC.step(
     init_params=nothing,
     kwargs...
 )
-
-    # `TemperedState` has the transitions and states in the order of
-    # the processes, and performs swaps by moving the (inverse) temperatures
-    # `β` between the processes, rather than moving states between processes
-    # and keeping the `β` local to each process.
-    # 
-    # Therefore we iterate over the processes and then extract the corresponding
-    # `β`, `sampler` and `state`, and take a initialize.
-    internal_state = [
+    # `state`'s `internal[i]` contains the transition and state of the `i`th
+    # chain, `state` also contains a map of each chain's current inverse
+    # temperature `β`. Here, we initialise each chain using the corresponding 
+    # `β`-tempered `model`, `sampler` and `init_params`.
+    internal = [
         AbstractMCMC.step(
             rng,
             make_tempered_model(model, sampler.inverse_temperatures[i]),
@@ -39,8 +35,10 @@ function AbstractMCMC.step(
         )
         for i in 1:numtemps(sampler)
     ]
-    state = init_state(internal_state, collect(1:numtemps(sampler)), sampler)
+    state = init_state(internal, sampler)
 
+    # Burn-in _without_ attempting any swaps, this is different to the `discard_initial`
+    # process exposed via `AbstractMCMC.sample`
     if N_burnin > 0
         AbstractMCMC.@ifwithprogresslogger burnin_progress name = "Burn-in" begin
             if burnin_progress
@@ -57,7 +55,7 @@ function AbstractMCMC.step(
             end
         end
     end
-    return get_transition(state), state
+    return get_fresh_transition(state), state
 end
 
 function AbstractMCMC.step(
@@ -67,20 +65,18 @@ function AbstractMCMC.step(
     state::TemperedState;
     kwargs...
 )
-    # Reset
+    # Reset state
     @set! state.swap_acceptance_ratios = empty(state.swap_acceptance_ratios)
-    @set! state.is_swap = false
+    @set! state.is_swap = [false for _ in 1:numtemps(sampler)]
 
     if should_swap(sampler, state)
         state = swap(rng, model, sampler, state)
-        @set! state.is_swap = true
     end
 
     state = step(rng, model, sampler, state; kwargs...)
     @set! state.total_steps += 1
 
-    # We want to return the transition for the chain corresponding to `β = 1.0`
-    return get_transition(state), state
+    return get_fresh_transition(state), state
 end
 
 function step(
@@ -90,14 +86,14 @@ function step(
     state::TemperedState;
     kwargs...
 )
-    # `TemperedState` has the transitions and states in the order of
-    # the processes, and performs swaps by moving the (inverse) temperatures
-    # `β` between the processes, rather than moving states between processes
-    # and keeping the `β` local to each process.
-    # 
-    # Therefore we iterate over the processes and then extract the corresponding
-    # `β`, `sampler` and `state`, and take a step.
-    @set! state.internal_state = [
+    # Record all transitions prior to stepping
+    prev_transitions = [deepcopy(get_transition(state, i)) for i in 1:numtemps(sampler)]
+
+    # `state`'s `internal[i]` contains the transition and state of the `i`th
+    # chain, `state` also contains a map of each chain's current inverse temperature `β`.
+    # We iterate over the chains, stepping using the corresponding `β`-tempered `model`,
+    # `sampler` and `state`.
+    @set! state.internal = [
         AbstractMCMC.step(
             rng,
             make_tempered_model(model, get_inverse_temperature(state, i)),
@@ -107,13 +103,28 @@ function step(
         )
         for i in 1:numtemps(sampler)
     ]
+
+    # After stepping, extract the new transitions to compare to the previous ones. If a
+    # swap has taken place involving the `i`th chain or that chain is stale then we check
+    # that there has been a succesful proposal under the new inverse temperature. If there
+    # isn't, i.e. previous transition == new transition, then mark the chain as stale such
+    # that we do not record samples from it until a successful proposal is made.
+    for i in 1:numtemps(sampler)
+        if state.is_stale[i] || state.is_swap[i]
+            if prev_transitions[i] == get_transition(state, i)
+                @set! state.is_stale[i] = true
+            else
+                @set! state.is_stale[i] = false
+            end
+        end
+    end
     return state
 end
 
 """
     swap([strategy::AbstractSwapStrategy, ]rng, model, sampler, state)
 
-Return new `state`, now with temperatures swapped according to `strategy`.
+Return a new `state`, now with temperatures swapped according to `strategy`.
 
 If no `strategy` is provided, the return-value of [`swapstrategy`](@ref) called on `sampler`
 is used.
@@ -128,31 +139,17 @@ function swap(
 end
 
 function swap(
-    strategy::StandardSwap,
+    strategy::ReversibleSwap,
     rng::Random.AbstractRNG,
     model,
     sampler::TemperedSampler,
     state::TemperedState
 )
-    L = numtemps(sampler) - 1
-    k = rand(rng, 1:L)
-    return swap_attempt(rng, model, state, k)
-end
-
-function swap(
-    strategy::RandomPermutationSwap,
-    rng::Random.AbstractRNG,
-    model,
-    sampler::TemperedSampler,
-    state::TemperedState
-)
-    L = numtemps(sampler) - 1
-    levels = Vector{Int}(undef, L)
-    Random.randperm!(rng, levels)
-
-    # Iterate through all levels and attempt swaps.
-    for k in levels
-        state = swap_attempt(rng, model, state, k)
+    # Randomly select whether to attempt swaps between chains
+    # corresponding to odd or even indices of the temperature ladder
+    odd = rand([true, false])
+    for k in [Int(2 * i - odd) for i in 1:(floor((numtemps(sampler) - 1 + odd) / 2))]
+        state = swap_attempt(rng, model, state, k, k + 1)
     end
     return state
 end
@@ -164,20 +161,57 @@ function swap(
     sampler::TemperedSampler,
     state::TemperedState
 )
-    L = numtemps(sampler) - 1
-    # Alternate between swapping odds and evens.
-    levels = if state.total_steps % (2 * sampler.swap_every) == 0
-        1:2:L
-    else
-        2:2:L
+    # Alternate between attempting to swap chains corresponding
+    # to odd and even indices of the temperature ladder
+    odd = state.total_steps % (2 * sampler.swap_every) != 0
+    for k in [Int(2 * i - odd) for i in 1:(floor((numtemps(sampler) - 1 + odd) / 2))]
+        state = swap_attempt(rng, model, state, k, k + 1)
     end
+    return state
+end
 
-    # Iterate through all levels and attempt swaps.
-    for k in levels
-        # TODO: For this swapping strategy, we should really be using the adaptation from Syed et. al. (2019),
-        # but with the current one: shouldn't we at least divide `state.total_steps` by 2 since it will
-        # take use two swap-attempts before we have tried swapping all of them (in expectation).
-        state = swap_attempt(rng, model, state, k)
+function swap(
+    strategy::SingleSwap,
+    rng::Random.AbstractRNG,
+    model,
+    sampler::TemperedSampler,
+    state::TemperedState
+)
+    # Select one index `k` of the temperature ladder and
+    # swap the corresponding chain and its neighbour
+    k = rand(rng, 1:(numtemps(sampler) - 1))
+    return swap_attempt(rng, model, state, k, k + 1)
+end
+
+function swap(
+    strategy::SingleRandomSwap,
+    rng::Random.AbstractRNG,
+    model,
+    sampler::TemperedSampler,
+    state::TemperedState
+)
+    # Randomly pick two temperature ladder indices in order to
+    # attempt a swap between the corresponding chains
+    chains = Set(1:numtemps(sampler))
+    i = pop!(chains, rand(rng, chains))
+    j = pop!(chains, rand(rng, chains))
+    return swap_attempt(rng, model, state, i, j)
+end
+
+function swap(
+    strategy::RandomSwap,
+    rng::Random.AbstractRNG,
+    model,
+    sampler::TemperedSampler,
+    state::TemperedState
+)
+    # Iterate through all of temperature ladder indices, picking random
+    # pairs and attempting swaps between the corresponding chains
+    chains = Set(1:numtemps(sampler))
+    while length(chains) >= 2
+        i = pop!(chains, rand(rng, chains))
+        j = pop!(chains, rand(rng, chains))
+        state = swap_attempt(rng, model, state, i, j)
     end
     return state
 end

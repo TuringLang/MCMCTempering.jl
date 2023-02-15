@@ -1,11 +1,13 @@
 """
-    get_scaling_val(N_it, swap_strategy)
+    get_scaling_val(N_it, <:AbstractSwapStrategy)
 
 Calculates a scaling factor for polynomial step size between inverse temperatures.
 """
-get_scaling_val(N_it, ::StandardSwap) = N_it - 1
+get_scaling_val(N_it, ::ReversibleSwap) = 2
 get_scaling_val(N_it, ::NonReversibleSwap) = 2
-get_scaling_val(N_it, ::RandomPermutationSwap) = 1
+get_scaling_val(N_it, ::SingleSwap) = N_it - 1
+get_scaling_val(N_it, ::SingleRandomSwap) = N_it - 1
+get_scaling_val(N_it, ::RandomSwap) = 1
 get_scaling_val(N_it, ::NoSwap) = N_it - 1
 
 """
@@ -14,8 +16,8 @@ get_scaling_val(N_it, ::NoSwap) = N_it - 1
 Returns a temperature ladder `Δ` containing `N_it` values,
 generated in accordance with the chosen `swap_strategy`.
 """
-function generate_inverse_temperatures(N_it, swap_strategy)
-    # Apparently, here we increase the temperature by a constant
+function generate_inverse_temperatures(N_it, swap_strategy::AbstractSwapStrategy)
+    # Here we increase the temperature by a constant
     # factor which depends on `swap_strategy`.
     scaling_val = get_scaling_val(N_it, swap_strategy)
     Δ = Vector{Float64}(undef, N_it)

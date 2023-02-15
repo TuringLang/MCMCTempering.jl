@@ -50,7 +50,7 @@ function test_and_sample_model(
     model,
     sampler,
     inverse_temperatures,
-    swap_strategy=MCMCTempering.StandardSwap();
+    swap_strategy=MCMCTempering.SingleSwap();
     mean_swap_rate_bound=0.1,
     compare_mean_swap_rate=≥,
     num_iterations=2_000,
@@ -270,8 +270,8 @@ end
 
         # Different swap strategies to test.
         swapstrategies = [
-            MCMCTempering.StandardSwap(),
-            MCMCTempering.RandomPermutationSwap(),
+            MCMCTempering.SingleSwap(),
+            MCMCTempering.RandomSwap(),
             MCMCTempering.NonReversibleSwap()
         ]
 
@@ -373,7 +373,7 @@ end
                 model,
                 sampler_mh,
                 [1, 0.9, 0.75, 0.5, 0.25, 0.1],
-                swap_strategy=MCMCTempering.StandardSwap(),
+                swap_strategy=MCMCTempering.SingleSwap(),
                 num_iterations=num_iterations,
                 swap_every=2,
                 adapt=false,

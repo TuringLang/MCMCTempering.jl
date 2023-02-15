@@ -10,7 +10,7 @@ $(FIELDS)
 @concrete struct TemperedSampler <: AbstractMCMC.AbstractSampler
     "sampler(s) used to target the tempered distributions"
     internal
-    "collection of inverse temperatures β; β[i] correponds i-th tempered model"
+    "collection of inverse temperatures β; β[i] correponds `i`th tempered model"
     inverse_temperatures
     "number of steps of `sampler` to take before proposing swaps"
     swap_every
@@ -33,10 +33,10 @@ numtemps(sampler::TemperedSampler) = length(sampler.inverse_temperatures)
 """
     tempered(sampler, inverse_temperatures; kwargs...)
     OR
-    tempered(sampler, N_it; swap_strategy=StandardSwap(), kwargs...)
+    tempered(sampler, N_it; swap_strategy=ReversibleSwap(), kwargs...)
 
-Return a tempered version of `sampler` using the provided `inverse_temperatures` or
-inverse temperatures generated from `N_it` and the `swap_strategy`.
+Return a tempered version of `sampler` using the provided `inverse_temperatures`,
+_or_ `N_it` inverse temperatures generated according to the `swap_strategy`.
 
 # Arguments
 - `sampler` is an algorithm or sampler object to be used for underlying sampling and to apply tempering to
@@ -50,17 +50,21 @@ inverse temperatures generated from `N_it` and the `swap_strategy`.
 - `swap_every::Integer` steps are carried out between each attempt at a swap
 
 # See also
+- [`tempered_sample`](@ref)
 - [`TemperedSampler`](@ref)
 - For more on the swap strategies:
-  - [`AbstractSwapStrategy`](@ref)
-  - [`StandardSwap`](@ref)
-  - [`NonReversibleSwap`](@ref)
-  - [`RandomPermutationSwap`](@ref)
+    - [`AbstractSwapStrategy`](@ref)
+    - [`ReversibleSwap`](@ref)
+    - [`NonReversibleSwap`](@ref)
+    - [`SingleSwap`](@ref)
+    - [`SingleRandomSwap`](@ref)
+    - [`RandomSwap`](@ref)
+    - [`NoSwap`](@ref)
 """
 function tempered(
     sampler::AbstractMCMC.AbstractSampler,
     N_it::Integer;
-    swap_strategy::AbstractSwapStrategy=StandardSwap(),
+    swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
     kwargs...
 )
     return tempered(
@@ -70,10 +74,11 @@ function tempered(
         kwargs...
     )
 end
+
 function tempered(
     sampler::AbstractMCMC.AbstractSampler,
     inverse_temperatures::Vector{<:Real};
-    swap_strategy::AbstractSwapStrategy=StandardSwap(),
+    swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
     swap_every::Integer=1,
     adapt_schedule=NoAdapt(),
     adapt_target_swap_ar::Real=0.234,
