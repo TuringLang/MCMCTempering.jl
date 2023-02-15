@@ -43,17 +43,17 @@ This implementation follows approach (2).
 Here's an exemplar realisation of five steps of sampling and swap-attempts:
 
 ```
-Chains:     chain_order     chain_to_inverse_temperature_map     is_swap    total_steps
-| | |
-| | |       [1, 2, 3]       {1 => 1.0, 2 => 0.05, 3 => 0.0025}   false      1
- V  |
- Λ  |       [2, 1, 3]       {1 => 0.05, 2 => 1.0, 3 => 0.0025}   true       2
-| | |
-| | |       [2, 1, 3]       {1 => 0.05, 2 => 1.0, 3 => 0.0025}   false      3
-|  V 
-|  Λ        [2, 3, 1]       {1 => 0.0025, 2 => 1.0, 3 => 0.05}   true       4
-| | |
-| | |       [2, 3, 1]       {1 => 0.0025, 2 => 1.0, 3 => 0.05}   false      5
+Chains:    chain_order    chain_to_inverse_temperature_map      is_swap    total_steps
+ | | |
+ | | |     [1, 2, 3]      {1 => 1.0, 2 => 0.05, 3 => 0.0025}    false      1
+  V  |
+  Λ  |     [2, 1, 3]      {1 => 0.05, 2 => 1.0, 3 => 0.0025}    true       2
+ | | |
+ | | |     [2, 1, 3]      {1 => 0.05, 2 => 1.0, 3 => 0.0025}    false      3
+ |  V 
+ |  Λ      [2, 3, 1]      {1 => 0.0025, 2 => 1.0, 3 => 0.05}    true       4
+ | | |
+ | | |     [2, 3, 1]      {1 => 0.0025, 2 => 1.0, 3 => 0.05}    false      5
 ```
 
 """
