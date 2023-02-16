@@ -86,6 +86,15 @@ function test_and_sample_model(
         callback=callback, progress=progress, init_params=init_params
     )
 
+    # Let's make sure the process ↔ chain mapping is valid.
+    numtemps = MCMCTempering.numtemps(sampler_tempered)
+    for state in states_tempered
+        for i = 1:numtemps
+            # These two should be inverses of each other.
+            @test MCMCTempering.process_to_chain(state, MCMCTempering.chain_to_process(state, i)) == i
+        end
+    end
+
     # Extract the states that were swapped.
     states_swapped = filter(Base.Fix2(getproperty, :is_swap), states_tempered)
     # Swap acceptance ratios should be compared against the target acceptance in case of adaptation.
@@ -192,6 +201,52 @@ function compare_chains(
 end
 
 @testset "MCMCTempering.jl" begin
+    @testset "Swapping" begin
+        # Chains:    process_to_chain    chain_to_process     chain_to_beta[process_to_chain[i]]
+        # | | | |       1  2  3  4          1  2  3  4             1.00  0.75  0.50  0.25
+        # | | | |
+        #  V  | |       2  1  3  4          2  1  3  4             0.75  1.00  0.50  0.25
+        #  Λ  | |
+        # |  V  |       2  3  1  4          3  1  2  4             0.75  0.50  1.00  0.25
+        # |  Λ  |
+        # Initial values.
+        process_to_chain = [1, 2, 3, 4]
+        chain_to_process = [1, 2, 3, 4]
+        chain_to_beta = [1.0, 0.75, 0.5, 0.25]
+
+        # Make swap chain 1 (now on process 1) ↔ chain 2 (now on process 2)
+        MCMCTempering.swap_betas!(chain_to_process, process_to_chain, 1)
+        # Expected result: chain 1 is now on process 2, chain 2 is now on process 1.
+        target_process_to_chain = [2, 1, 3, 4]
+        @test process_to_chain[chain_to_process] == 1:length(process_to_chain)
+        @testset "$((process_idx, chain_idx, process_β))" for (process_idx, chain_idx, process_β) in zip(
+            [1, 2, 3, 4],
+            target_process_to_chain,
+            chain_to_beta[target_process_to_chain]
+        )
+            @test MCMCTempering.process_to_chain(process_to_chain, chain_idx) == process_idx
+            @test MCMCTempering.chain_to_process(chain_to_process, process_idx) == chain_idx
+            @test MCMCTempering.β_for_chain(chain_to_beta, chain_idx) == process_β
+            @test MCMCTempering.β_for_process(chain_to_beta, process_to_chain, process_idx) == process_β
+        end
+
+        # Make swap chain 2 (now on process 1) ↔ chain 3 (now on process 3)
+        MCMCTempering.swap_betas!(chain_to_process, process_to_chain, 2)
+        # Expected result: chain 3 is now on process 1, chain 2 is now on process 3.
+        target_process_to_chain = [3, 1, 2, 4]
+        @test process_to_chain[chain_to_process] == 1:length(process_to_chain)
+        @testset "$((process_idx, chain_idx, process_β))" for (process_idx, chain_idx, process_β) in zip(
+            [1, 2, 3, 4],
+            target_process_to_chain,
+            chain_to_beta[target_process_to_chain]
+        )
+            @test MCMCTempering.process_to_chain(process_to_chain, process_idx) == chain_idx
+            @test MCMCTempering.chain_to_process(chain_to_process, chain_idx) == process_idx
+            @test MCMCTempering.β_for_chain(chain_to_beta, chain_idx) == process_β
+            @test MCMCTempering.β_for_process(chain_to_beta, process_to_chain, process_idx) == process_β
+        end
+    end
+
     @testset "Simple MvNormal with no expected swaps" begin
         num_iterations = 10_000
         d = 1
@@ -346,7 +401,7 @@ end
             map_parameters!(b, chain_tempered)
 
             # TODO: Make it not broken, i.e. produce reasonable results.
-            compare_chains(chain_hmc, chain_tempered, atol=0.1, compare_std=false, compare_ess=false, isbroken=true)
+            compare_chains(chain_hmc, chain_tempered, atol=0.2, compare_std=false, compare_ess=true, isbroken=false)
         end
         
         @testset "AdvancedMH.jl" begin
@@ -384,7 +439,7 @@ end
             map_parameters!(b, chain_tempered)
 
             # TODO: Make it not broken, i.e. produce reasonable results.
-            compare_chains(chain_mh, chain_tempered, atol=0.1, compare_std=false, compare_ess=false, isbroken=true)
+            compare_chains(chain_mh, chain_tempered, atol=0.2, compare_std=false, compare_ess=true, isbroken=false)
         end
     end
 end
