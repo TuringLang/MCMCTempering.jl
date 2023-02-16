@@ -59,9 +59,21 @@ function tempered_sample(
     sampler::AbstractMCMC.AbstractSampler,
     N::Integer,
     inverse_temperatures::Vector{<:Real};
+    chain_type=nothing,
     kwargs...
 )
     tempered_sampler = tempered(sampler, inverse_temperatures; kwargs...)
     samples = AbstractMCMC.sample(rng, model, tempered_sampler, N; kwargs...)
-    return Vector{typeof(samples[1])}(samples[samples .!== nothing])
+    samples = Vector{typeof(samples[1])}(samples[samples .!== nothing])
+    if !isnothing(chain_type)
+        return AbstractMCMC.bundle_samples(
+            samples,
+            maybe_wrap_model(model),
+            sampler,
+            samples[end],
+            chain_type
+        )
+    else
+        return samples
+    end
 end
