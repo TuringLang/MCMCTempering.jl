@@ -5,71 +5,115 @@ This package is currently under development. Details below are subject to change
 
 # MCMCTempering.jl
 
-MCMCTempering.jl implements simulated and parallel tempering, two methods for sampling from complex or multi-modal posteriors. These algorithms use temperature scheduling to flatten out the target distribution, making it easier to sample from.
+This package offers a flexible family of methods for dealing with complex and multi-modal posteriors. These methods can augment standard MCMC samplers and kernels which may otherwise struggle to sample effectively in these situations, leading to poor mixing or only partial exploration of a posterior of interest.
+
+So far, we have implemented a modular and extendable Adaptive Parallel Tempering (PT) meta-algorithm with options for choosing swap and adaptation strategies. PT leverages a temperature ladder and multiple parallel chains to "temper" the target log-density function to different degrees. The goal is to flatten out the target and build bridges for the most tempered chains to easily mix across isolated modes, before passing this information back down to the untempered "cold" target state.
+
+We hope to offer multi-threaded and distributed implementations of this approach soon, as well as providing more cutting edge methods for helping solve situations where multi-modality and complexity pose barriers to inference.
 
 
 ## Using MCMCTempering
 
-`MCMCTempering` stores temperature scheduling information in a special kind of `sampler`. We can temper a sampler by calling the `tempered` function on any `sampler` that supports `MCMCTempering`. Here's an example using :
+`MCMCTempering` stores temperature scheduling information in a special kind of `sampler`. In order to leverage this package's approaches, we can either:
+
+1. call `tempered_sample` in place of the usual `sample` method provided by `AbstractMCMC`, we provide the usual arguments plus any tempering specific configuration; or
+2. temper a sampler by calling the `tempered` function on any `sampler` that supports `MCMCTempering`, before passing this sampler to a `sample` call ourselves manually.
+
+Below is an example use case, inclusive of a complete implementation for `AdvancedMH` and comparisons with and without standard application of PT:
 
 ```julia
-julia> using MCMCTempering
+using MCMCTempering
 
-julia> using AdvancedMH, Distributions, LogDensityProblems, MCMCChains
+using AdvancedMH, AbstractMCMC, Distributions, LogDensityProblems, MCMCChains
+using Random, LinearAlgebra
+using Plots, StatsPlots
 
-julia> using Random, LinearAlgebra
+Random.seed!(123);
 
-julia> Random.seed!(42);
+# Target of interest.
+struct Problem end
 
-julia> # Target of interest.
-       struct Problem end
+# Gaussian Mixture Model with 4 components, one of which is very isolated from the rest
+gmm = MixtureModel(
+       Normal,
+       [(0, 1.5), (6, 1.5), (20, 1.5), (50, 1.5)],
+       [0.1, 0.2, 0.3, 0.4]
+)
 
-julia> LogDensityProblems.logdensity(::Problem, x) = loglikelihood(MixtureModel([Normal(0, 1), Normal(5, 1)]), x)
+LogDensityProblems.logdensity(::Problem, x) = loglikelihood(gmm, x)
+LogDensityProblems.dimension(::Problem) = 1
+LogDensityProblems.capabilities(::Type{Problem}) = LogDensityProblems.LogDensityOrder{0}()
 
-julia> LogDensityProblems.dimension(::Problem) = 1
+model = Problem();
 
-julia> LogDensityProblems.capabilities(::Type{Problem}) = LogDensityProblems.LogDensityOrder{0}()
+# Make AdvancedMH.jl compatible with MCMCTempering.jl.
+MCMCTempering.getparams(transition::AdvancedMH.Transition) = transition.params
 
-julia> model = Problem();
+# Set up our sampler with a joint multivariate Normal proposal.
+sampler = RWMH(Normal());
 
-julia> # Make AdvancedMH.jl compatible with MCMCTempering.jl.
-       MCMCTempering.getparams(transition::AdvancedMH.Transition) = transition.params
+# Set our temperature ladder and observe it with respect to the density
+inverse_temperatures = MCMCTempering.check_inverse_temperatures(0.05 .^ [0, 1, 2])
 
-julia> # Set up our sampler with a joint multivariate Normal proposal.
-       sampler = RWMH(MvNormal(zeros(1), I));
+sample = rand(gmm, 100_000)
+x = minimum(sample):0.1:maximum(sample)
+plot(x, hcat(collect(pdf.(gmm, x) .^ β for β in inverse_temperatures)...))
+```
 
-julia> tempered_sampler = tempered(sampler, 10);
+[Output of the above code, illustrating the target and tempered targets for PT](docs/tempered_densities.pdf)
 
-julia> # Sample from the posterior.
-       chain = sample(
-           model, tempered_sampler, 100_000;
-           discard_initial=50_000, chain_type=MCMCChains.Chains, param_names=["x"]
-       )
-Sampling 100%|██████████████████████████████████████████████████████████████████████████████████████| Time: 0:00:01
-Chains MCMC chain (100000×2×1 Array{Float64, 3}):
+```julia
+# Next, we acquire a standard, non-tempered sample
+chain = AbstractMCMC.sample(model, sampler, 1_000_000, chain_type=MCMCChains.Chains)
 
-Iterations        = 50001:1:150000
-Number of chains  = 1
-Samples per chain = 100000
-parameters        = x
-internals         = lp
-
+"""
 Summary Statistics
-  parameters      mean       std   naive_se      mcse        ess      rhat 
-      Symbol   Float64   Float64    Float64   Float64    Float64   Float64 
+  parameters      mean       std   naive_se      mcse         ess      rhat 
+      Symbol   Float64   Float64    Float64   Float64     Float64   Float64 
 
-           x    2.5146    7.8534     0.0248    0.2883   542.5238    1.0003
+     param_1    5.7010    5.8855     0.0059    0.1609   2525.9337    1.0980
 
 Quantiles
-  parameters       2.5%     25.0%     50.0%     75.0%     97.5% 
-      Symbol    Float64   Float64   Float64   Float64   Float64 
+  parameters      2.5%     25.0%     50.0%     75.0%     97.5% 
+      Symbol   Float64   Float64   Float64   Float64   Float64 
 
-           x   -13.4900   -2.1491    2.5031    7.4361   17.8821
+     param_1   -2.1148    1.3748    5.3484    7.0577   21.1311
+"""
 
-
-julia> mean(MixtureModel([Normal(0, 1), Normal(5, 1)]))
-2.5
+plot(chain)
 ```
+
+[Results of standard sampling of the target, very poor mixing and modes not fully discovered](docs/chain.pdf)
+
+```julia
+tempered_chain = tempered_sample(
+       model,
+       sampler,
+       1_000_000,
+       inverse_temperatures;
+       swap_strategy=MCMCTempering.NonReversibleSwap(),
+       chain_type=MCMCChains.Chains,
+       swap_every=10
+)
+
+"""
+Summary Statistics
+  parameters      mean       std   naive_se      mcse         ess      rhat 
+      Symbol   Float64   Float64    Float64   Float64     Float64   Float64 
+
+     param_1   28.7887   19.4681     0.0229    0.4439   2750.0853    1.0015
+
+Quantiles
+  parameters      2.5%     25.0%     50.0%     75.0%     97.5% 
+      Symbol   Float64   Float64   Float64   Float64   Float64 
+
+     param_1   -0.6601    8.2885   21.0917   49.6947   52.3102
+"""
+
+plot(tempered_chain)
+```
+
+[Results of tempered sampling of the target, near-perfect mixing and full exploration of the target modes](docs/tempered_chain.pdf)
 
 Enjoy your smooth sampling from multimodal posteriors!
 
