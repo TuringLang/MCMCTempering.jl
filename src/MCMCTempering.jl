@@ -25,6 +25,7 @@ include("model.jl")
 
 export tempered,
     tempered_sample,
+    prepare_tempered_sample,
     TemperedSampler,
     make_tempered_model,
     ReversibleSwap,

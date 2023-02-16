@@ -19,7 +19,7 @@ We hope to offer multi-threaded and distributed implementations of this approach
 1. call `tempered_sample` in place of the usual `sample` method provided by `AbstractMCMC`, we provide the usual arguments plus any tempering specific configuration; or
 2. temper a sampler by calling the `tempered` function on any `sampler` that supports `MCMCTempering`, before passing this sampler to a `sample` call ourselves manually.
 
-Below is an example use case, inclusive of a complete implementation for `AdvancedMH` and comparisons with and without standard application of PT:
+Below is an example use case, inclusive of the steps required to support `AdvancedMH`, and sample comparisons with and without application of this package:
 
 ```julia
 using MCMCTempering
@@ -62,6 +62,8 @@ plot(x, hcat(collect(pdf.(gmm, x) .^ β for β in inverse_temperatures)...), lab
 
 ![Output of the above code, illustrating the target and tempered targets for PT](docs/tempered_densities.png)
 
+We can see that as we more severely temper the density, it approaches a uniform distribution, something most MCMC samplers find trivial to traverse.
+
 ```julia
 # Next, we acquire a standard, non-tempered sample
 chain = AbstractMCMC.sample(model, sampler, 1_000_000, chain_type=MCMCChains.Chains)
@@ -85,7 +87,7 @@ plot(chain)
 
 ![Results of standard sampling of the target, very poor mixing and modes not fully discovered](docs/chain.png)
 
-Clearly, this standard approach exhibits very poor mixing and does not succesfully explore all the modes of the target, nor does it represent the modes it does discover correctly due to the poor mixing.
+The standard approach taken above exhibits very poor mixing and does not succesfully explore all of the modes of the target. It also fails to accurately represent the modes it _does_ discover due to very poor mixing, despite the large number of steps taken.
 
 ```julia
 tempered_chain = tempered_sample(
@@ -93,7 +95,7 @@ tempered_chain = tempered_sample(
        sampler,
        1_000_000,
        inverse_temperatures;
-       swap_strategy=MCMCTempering.NonReversibleSwap(),
+       swap_strategy=MCMCTempering.ReversibleSwap(),
        chain_type=MCMCChains.Chains,
        swap_every=10
 )
@@ -117,18 +119,33 @@ plot(tempered_chain)
 
 ![Results of tempered sampling of the target, near-perfect mixing and full exploration of the target modes](docs/tempered_chain.png)
 
-These results are much closer to the original target, showing that PT can overcome the multi-modality problem posed by our chosen model. Additionally, the mixing between modes is vastly improved.
+These results are much closer to the original target, showing that PT has managed to overcome the multi-modality problem posed by our model. Additionally, the mixing between modes has vastly improved, giving a much better representation of their respective weights in the GMM.
 
-Enjoy your smooth sampling from multi-modal posteriors!
+Note that equally, we could have `tempered` the `sampler` and then called `sample` on it as normal:
+
+```julia
+tempered_sampler = tempered(
+       sampler,
+       inverse_temperatures;
+       swap_strategy=MCMCTempering.ReversibleSwap(),
+       swap_every=10
+)
+tempered_samples = AbstractMCMC.sample(model, tempered_sampler, 1_000_000)
+tempered_chain = MCMCTempering.prepare_tempered_chain(
+       tempered_samples, model, sampler, 1_000_000; chain_type=MCMCChains.Chains
+)
+```
+
+Hopefully, this package can help solve your sampling woes too!
 
 
 ## Supporting MCMCTempering
 
-This package can easily be extended to support any sampler following the lightweight `AbstractMCMC` interface.
+This package can easily be extended to support any sampler conforming to the lightweight `AbstractMCMC` interface.
 
 ### The simple way
 
-`AbstractMCMC.step` returns two things: a `transition` representing the state of the Markov chain, and a `state` representing the full state of the sampler. These are both kept track of internally and used by MCMCTempering.jl, and MCMCTempering.jl just needs a tiny bit of information on how to interact with these (in particular the latter one).
+`AbstractMCMC.step` returns two things: a `transition` representing the state of the Markov chain, and a `state` representing the full state of the sampler. These are both kept track of internally and used by MCMCTempering.jl, and MCMCTempering.jl just needs a tiny bit of information on how to interact with these (in particular the former of these).
 
 First we need to implement `MCMCTempering.getparams(transition)` so `MCMCTempering` knows how to extract parameters from the state of the Markov chain. Maybe it looks something like:
 
