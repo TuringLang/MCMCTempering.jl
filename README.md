@@ -85,6 +85,8 @@ plot(chain)
 
 ![Results of standard sampling of the target, very poor mixing and modes not fully discovered](docs/chain.png)
 
+Clearly, this standard approach exhibits very poor mixing and does not succesfully explore all the modes of the target, nor does it represent the modes it does discover correctly due to the poor mixing.
+
 ```julia
 tempered_chain = tempered_sample(
        model,
@@ -115,7 +117,9 @@ plot(tempered_chain)
 
 ![Results of tempered sampling of the target, near-perfect mixing and full exploration of the target modes](docs/tempered_chain.png)
 
-Enjoy your smooth sampling from multimodal posteriors!
+These results are much closer to the original target, showing that PT can overcome the multi-modality problem posed by our chosen model. Additionally, the mixing between modes is vastly improved.
+
+Enjoy your smooth sampling from multi-modal posteriors!
 
 
 ## Supporting MCMCTempering
