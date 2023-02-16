@@ -16,10 +16,10 @@ We hope to offer multi-threaded and distributed implementations of this approach
 
 `MCMCTempering` stores temperature scheduling information in a special kind of `sampler`. In order to leverage this package's approaches, we can either:
 
-1. call `tempered_sample` in place of the usual `sample` method provided by `AbstractMCMC`, we provide the usual arguments plus any tempering specific configuration; or
-2. temper a sampler by calling the `tempered` function on any `sampler` that supports `MCMCTempering`, before passing this sampler to a `sample` call ourselves manually.
+1. call `tempered_sample` on a supported `sampler` in place of the usual `sample` method provided by `AbstractMCMC`, alongside the usual arguments plus any tempering specific configuration; or
+2. call `tempered` on any `sampler` that supports `MCMCTempering`, before passing this tempered sampler to a `sample` call as usual; then calling `prepare_tempered_chain` to return a cleaned sample or chain.
 
-Below is an example use case, inclusive of the steps required to support `AdvancedMH`, and sample comparisons with and without application of this package:
+Below is an example use case, inclusive of the steps required to support `AdvancedMH` samplers, and sample comparisons with and without application of this package:
 
 ```julia
 using MCMCTempering
@@ -87,7 +87,7 @@ plot(chain)
 
 ![Results of standard sampling of the target, very poor mixing and modes not fully discovered](docs/chain.png)
 
-The standard approach taken above exhibits very poor mixing and does not succesfully explore all of the modes of the target. It also fails to accurately represent the modes it _does_ discover due to very poor mixing, despite the large number of steps taken.
+The standard approach taken above exhibits very poor mixing and does not succesfully explore all of the modes of the target. It also fails to accurately represent the modes it _does_ discover, despite the large number of steps taken.
 
 ```julia
 tempered_chain = tempered_sample(
@@ -125,14 +125,14 @@ Note that equally, we could have `tempered` the `sampler` and then called `sampl
 
 ```julia
 tempered_sampler = tempered(
-       sampler,
+       sampler_rwmh,
        inverse_temperatures;
        swap_strategy=MCMCTempering.ReversibleSwap(),
        swap_every=10
 )
 tempered_samples = AbstractMCMC.sample(model, tempered_sampler, 1_000_000)
 tempered_chain = MCMCTempering.prepare_tempered_chain(
-       tempered_samples, model, sampler, 1_000_000; chain_type=MCMCChains.Chains
+       tempered_samples, model, sampler_rwmh; chain_type=MCMCChains.Chains
 )
 ```
 
