@@ -57,7 +57,7 @@ inverse_temperatures = MCMCTempering.check_inverse_temperatures(0.05 .^ [0, 1, 2
 
 sample = rand(gmm, 100_000)
 x = minimum(sample):0.1:maximum(sample)
-plot(x, hcat(collect(pdf.(gmm, x) .^ β for β in inverse_temperatures)...))
+plot(x, hcat(collect(pdf.(gmm, x) .^ β for β in inverse_temperatures)...), labels = ["β = 1.0" "β = 0.05" "β = 0.0025"])
 ```
 
 ![Output of the above code, illustrating the target and tempered targets for PT](docs/tempered_densities.png)
