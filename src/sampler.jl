@@ -44,7 +44,7 @@ If `I...` is not specified, the sampler corresponding to `β=1.0` will be return
 """
 sampler_for_chain(sampler::TemperedSampler, state::TemperedState) = sampler_for_chain(sampler, state, 1)
 function sampler_for_chain(sampler::TemperedSampler, state::TemperedState, I...)
-    return getsampler(sampler.sampler, state.chain_to_process[I...])
+    return getsampler(sampler.sampler, chain_to_process(state, I...))
 end
 
 """

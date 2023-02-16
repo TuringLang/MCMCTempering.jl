@@ -33,7 +33,7 @@ temperatures between workers rather than the full states.
 
 This implementation follows approach (2).
 
-Here's an exemplar realisation of five steps of sampling and swap-attempts:
+Here's an example realisation of five steps of sampling and swap-attempts:
 
 ```
 Chains:    process_to_chain    chain_to_process   inverse_temperatures[process_to_chain[i]]
@@ -83,13 +83,31 @@ The indices here are exactly those represented by `states[k].chain_to_process[1]
 end
 
 """
+    process_to_chain(state, I...)
+
+Return the chain index corresponding to the process index `I`.
+"""
+process_to_chain(state::TemperedState, I...) = process_to_chain(state.process_to_chain, I...)
+# NOTE: Array impl. is useful for testing.
+process_to_chain(proc2chain::AbstractArray, I...) = proc2chain[I...]
+
+"""
+    chain_to_process(state, I...)
+
+Return the process index corresponding to the chain index `I`.
+"""
+chain_to_process(state::TemperedState, I...) = chain_to_process(state.chain_to_process, I...)
+# NOTE: Array impl. is useful for testing.
+chain_to_process(chain2proc::AbstractArray, I...) = chain2proc[I...]
+
+"""
     transition_for_chain(state[, I...])
 
 Return the transition corresponding to the chain indexed by `I...`.
 If `I...` is not specified, the transition corresponding to `β=1.0` will be returned, i.e. `I = (1, )`.
 """
 transition_for_chain(state::TemperedState) = transition_for_chain(state, 1)
-transition_for_chain(state::TemperedState, I...) = state.transitions_and_states[state.chain_to_process[I...]][1]
+transition_for_chain(state::TemperedState, I...) = transition_for_process(state, chain_to_process(state, I...))
 
 """
     transition_for_process(state, I...)
@@ -105,7 +123,7 @@ Return the state corresponding to the chain indexed by `I...`.
 If `I...` is not specified, the state corresponding to `β=1.0` will be returned.
 """
 state_for_chain(state::TemperedState) = state_for_chain(state, 1)
-state_for_chain(state::TemperedState, I...) = state.transitions_and_states[I...][2]
+state_for_chain(state::TemperedState, I...) = state_for_process(state, chain_to_process(state, I...))
 
 """
     state_for_process(state, I...)
@@ -121,14 +139,20 @@ Return the β corresponding to the chain indexed by `I...`.
 If `I...` is not specified, the β corresponding to `β=1.0` will be returned.
 """
 β_for_chain(state::TemperedState) = β_for_chain(state, 1)
-β_for_chain(state::TemperedState, I...) = state.inverse_temperatures[state.chain_to_process[I...]]
+β_for_chain(state::TemperedState, I...) = β_for_chain(state.inverse_temperatures, I...)
+# NOTE: Array impl. is useful for testing.
+β_for_chain(chain_to_beta::AbstractArray, I...) = chain_to_beta[I...]
 
 """
     β_for_process(state, I...)
 
 Return the β corresponding to the process indexed by `I...`.
 """
-β_for_process(state::TemperedState, I...) = state.inverse_temperatures[I...]
+β_for_process(state::TemperedState, I...) = β_for_process(state.inverse_temperatures, state.process_to_chain, I...)
+# NOTE: Array impl. is useful for testing.
+function β_for_process(chain_to_beta::AbstractArray, proc2chain::AbstractArray, I...)
+    return β_for_chain(chain_to_beta, process_to_chain(proc2chain, I...))
+end
 
 """
     getparams(transition)
