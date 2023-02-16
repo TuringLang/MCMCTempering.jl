@@ -82,12 +82,23 @@ The indices here are exactly those represented by `states[k].chain_to_process[1]
     swap_acceptance_ratios
 end
 
-# Array-impls are useful for testing.
-process_to_chain(proc2chain::AbstractArray, I...) = proc2chain[I...]
-process_to_chain(state::TemperedState, I...) = process_to_chain(state.process_to_chain, I...)
+"""
+    process_to_chain(state, I...)
 
-chain_to_process(chain2proc::AbstractArray, I...) = chain2proc[I...]
+Return the chain index corresponding to the process index `I`.
+"""
+process_to_chain(state::TemperedState, I...) = process_to_chain(state.process_to_chain, I...)
+# NOTE: Array impl. is useful for testing.
+process_to_chain(proc2chain::AbstractArray, I...) = proc2chain[I...]
+
+"""
+    chain_to_process(state, I...)
+
+Return the process index corresponding to the chain index `I`.
+"""
 chain_to_process(state::TemperedState, I...) = chain_to_process(state.chain_to_process, I...)
+# NOTE: Array impl. is useful for testing.
+chain_to_process(chain2proc::AbstractArray, I...) = chain2proc[I...]
 
 """
     transition_for_chain(state[, I...])
