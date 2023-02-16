@@ -60,7 +60,7 @@ x = minimum(sample):0.1:maximum(sample)
 plot(x, hcat(collect(pdf.(gmm, x) .^ β for β in inverse_temperatures)...))
 ```
 
-[Output of the above code, illustrating the target and tempered targets for PT](docs/tempered_densities.pdf)
+[Output of the above code, illustrating the target and tempered targets for PT](docs/tempered_densities.png)
 
 ```julia
 # Next, we acquire a standard, non-tempered sample
@@ -83,7 +83,7 @@ Quantiles
 plot(chain)
 ```
 
-[Results of standard sampling of the target, very poor mixing and modes not fully discovered](docs/chain.pdf)
+[Results of standard sampling of the target, very poor mixing and modes not fully discovered](docs/chain.png)
 
 ```julia
 tempered_chain = tempered_sample(
@@ -113,7 +113,7 @@ Quantiles
 plot(tempered_chain)
 ```
 
-[Results of tempered sampling of the target, near-perfect mixing and full exploration of the target modes](docs/tempered_chain.pdf)
+[Results of tempered sampling of the target, near-perfect mixing and full exploration of the target modes](docs/tempered_chain.png)
 
 Enjoy your smooth sampling from multimodal posteriors!
 
