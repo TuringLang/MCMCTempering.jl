@@ -18,7 +18,7 @@ Moreover, suppose we also have 4 workers/processes for which we run these chains
 
 We can then perform a swap in two different ways:
 1. Swap the the _states_ between each process, i.e. permute `transitions_and_states`.
-2. Swap the _temperatures_ between each process, i.e. permute `inverse_temperatures`.
+2. Swap the _temperatures_ between each process, i.e. permute `chain_to_beta`.
 
 (1) is possibly the most intuitive approach since it means that the i-th worker/process
 corresponds to the i-th chain; in this case, process 1 corresponds to `X`, process 2 to `Y`, etc.
@@ -64,8 +64,8 @@ The indices here are exactly those represented by `states[k].chain_to_process[1]
 @concrete struct TemperedState
     "collection of `(transition, state)` pairs for each process"
     transitions_and_states
-    "collection of (inverse) temperatures β corresponding to each process"
-    inverse_temperatures
+    "collection of (inverse) temperatures β corresponding to each chain"
+    chain_to_beta
     "collection indices such that `chain_to_process[i] = j` if the j-th process corresponds to the i-th chain"
     chain_to_process
     "collection indices such that `process_chain_to[j] = i` if the i-th chain corresponds to the j-th process"
@@ -138,20 +138,20 @@ state_for_process(state::TemperedState, I...) = state.transitions_and_states[I..
 Return the β corresponding to the chain indexed by `I...`.
 If `I...` is not specified, the β corresponding to `β=1.0` will be returned.
 """
-β_for_chain(state::TemperedState) = β_for_chain(state, 1)
-β_for_chain(state::TemperedState, I...) = β_for_chain(state.inverse_temperatures, I...)
+beta_for_chain(state::TemperedState) = beta_for_chain(state, 1)
+beta_for_chain(state::TemperedState, I...) = beta_for_chain(state.chain_to_beta, I...)
 # NOTE: Array impl. is useful for testing.
-β_for_chain(chain_to_beta::AbstractArray, I...) = chain_to_beta[I...]
+beta_for_chain(chain_to_beta::AbstractArray, I...) = chain_to_beta[I...]
 
 """
     β_for_process(state, I...)
 
 Return the β corresponding to the process indexed by `I...`.
 """
-β_for_process(state::TemperedState, I...) = β_for_process(state.inverse_temperatures, state.process_to_chain, I...)
+beta_for_process(state::TemperedState, I...) = beta_for_process(state.chain_to_beta, state.process_to_chain, I...)
 # NOTE: Array impl. is useful for testing.
-function β_for_process(chain_to_beta::AbstractArray, proc2chain::AbstractArray, I...)
-    return β_for_chain(chain_to_beta, process_to_chain(proc2chain, I...))
+function beta_for_process(chain_to_beta::AbstractArray, proc2chain::AbstractArray, I...)
+    return beta_for_chain(chain_to_beta, process_to_chain(proc2chain, I...))
 end
 
 """

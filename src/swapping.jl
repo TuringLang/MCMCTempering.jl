@@ -115,8 +115,8 @@ function swap_attempt(rng, model, sampler, state, k, adapt, total_steps)
     transitionkp1 = transition_for_chain(state, k + 1)
     statek = state_for_chain(state, k)
     statekp1 = state_for_chain(state, k + 1)
-    βk = β_for_chain(state, k)
-    βkp1 = β_for_chain(state, k + 1)
+    βk = beta_for_chain(state, k)
+    βkp1 = beta_for_chain(state, k + 1)
     # Evaluate logdensity for both parameters for each tempered density.
     logπk_θk, logπk_θkp1 = compute_tempered_logdensities(
         model, samplerk, samplerkp1, transitionk, transitionkp1, statek, statekp1, βk, βkp1
