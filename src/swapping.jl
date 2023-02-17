@@ -124,14 +124,14 @@ function compute_tempered_logdensities(
 end
 
 """
-    swap_acceptance_pt(logπᵢ, logπⱼ)
+    swap_acceptance_pt(logπi, logπj)
 
 Calculates and returns the swap acceptance ratio for swapping the temperature
-of two chains. Using tempered likelihoods `logπᵢ` and `logπⱼ` at the chains'
+of two chains. Using tempered likelihoods `logπi` and `logπj` at the chains'
 current state parameters.
 """
-function swap_acceptance_pt(logπᵢθᵢ, logπᵢθⱼ, logπⱼθᵢ, logπⱼθⱼ)
-    return (logπⱼθᵢ + logπᵢθⱼ) - (logπᵢθᵢ + logπⱼθⱼ)
+function swap_acceptance_pt(logπiθi, logπiθj, logπjθi, logπjθj)
+    return (logπjθi + logπiθj) - (logπiθi + logπjθj)
 end
 
 
@@ -143,25 +143,25 @@ calculating the swap acceptance ratio; then swapping if it is accepted.
 """
 function swap_attempt(rng, model, sampler, state, i, j)
     # Extract the relevant transitions.
-    samplerᵢ = sampler_for_chain(sampler, state, i)
-    samplerⱼ = sampler_for_chain(sampler, state, j)
-    transitionᵢ = transition_for_chain(state, i)
-    transitionⱼ = transition_for_chain(state, j)
-    stateᵢ = state_for_chain(state, i)
-    stateⱼ = state_for_chain(state, j)
-    βᵢ = beta_for_chain(state, i)
-    βⱼ = beta_for_chain(state, j)
+    sampler_i = sampler_for_chain(sampler, state, i)
+    sampler_j = sampler_for_chain(sampler, state, j)
+    transition_i = transition_for_chain(state, i)
+    transition_j = transition_for_chain(state, j)
+    state_i = state_for_chain(state, i)
+    state_j = state_for_chain(state, j)
+    β_i = beta_for_chain(state, i)
+    β_j = beta_for_chain(state, j)
     # Evaluate logdensity for both parameters for each tempered density.
-    logπᵢθᵢ, logπᵢθⱼ = compute_tempered_logdensities(
-        model, samplerᵢ, samplerⱼ, transitionᵢ, transitionⱼ, stateᵢ, stateⱼ, βᵢ, βⱼ
+    logπiθi, logπiθj = compute_tempered_logdensities(
+        model, sampler_i, sampler_j, transition_i, transition_j, state_i, state_j, β_i, β_j
     )
-    logπⱼθⱼ, logπⱼθᵢ = compute_tempered_logdensities(
-        model, samplerⱼ, samplerᵢ, transitionⱼ, transitionᵢ, stateⱼ, stateᵢ, βⱼ, βᵢ
+    logπjθj, logπjθi = compute_tempered_logdensities(
+        model, sampler_j, sampler_i, transition_j, transition_i, state_j, state_i, β_j, β_i
     )
     
     # If the proposed temperature swap is accepted according `logα`,
     # swap the temperatures for future steps.
-    logα = swap_acceptance_pt(logπᵢθᵢ, logπᵢθⱼ, logπⱼθᵢ, logπⱼθⱼ)
+    logα = swap_acceptance_pt(logπiθi, logπiθj, logπjθi, logπjθj)
     should_swap = -Random.randexp(rng) ≤ logα
     if should_swap
         swap_betas!(state.chain_to_process, state.process_to_chain, i, j)
