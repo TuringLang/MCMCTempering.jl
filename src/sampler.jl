@@ -59,7 +59,7 @@ end
 """
     tempered(sampler, inverse_temperatures; kwargs...)
     OR
-    tempered(sampler, N_it; swap_strategy=StandardSwap(), kwargs...)
+    tempered(sampler, N_it; swap_strategy=ReversibleSwap(), kwargs...)
 
 Return a tempered version of `sampler` using the provided `inverse_temperatures` or
 inverse temperatures generated from `N_it` and the `swap_strategy`.
@@ -72,21 +72,24 @@ inverse temperatures generated from `N_it` and the `swap_strategy`.
   - `N_it`, specifying the integer number of inverse temperatures to include in a generated `inverse_temperatures`
 
 # Keyword arguments
-- `swap_strategy::AbstractSwapStrategy` is the way in which inverse temperature swaps between chains are made
+- `swap_strategy::AbstractSwapStrategy` specifies the method for swapping inverse temperatures between chains
 - `swap_every::Integer` steps are carried out between each attempt at a swap
 
 # See also
 - [`TemperedSampler`](@ref)
 - For more on the swap strategies:
-  - [`AbstractSwapStrategy`](@ref)
-  - [`StandardSwap`](@ref)
-  - [`NonReversibleSwap`](@ref)
-  - [`RandomPermutationSwap`](@ref)
+    - [`AbstractSwapStrategy`](@ref)
+    - [`ReversibleSwap`](@ref)
+    - [`NonReversibleSwap`](@ref)
+    - [`SingleSwap`](@ref)
+    - [`SingleRandomSwap`](@ref)
+    - [`RandomSwap`](@ref)
+    - [`NoSwap`](@ref)
 """
 function tempered(
     sampler::AbstractMCMC.AbstractSampler,
     N_it::Integer;
-    swap_strategy::AbstractSwapStrategy=StandardSwap(),
+    swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
     kwargs...
 )
     return tempered(sampler, generate_inverse_temperatures(N_it, swap_strategy); swap_strategy = swap_strategy, kwargs...)
@@ -94,8 +97,8 @@ end
 function tempered(
     sampler::AbstractMCMC.AbstractSampler,
     inverse_temperatures::Vector{<:Real};
-    swap_strategy::AbstractSwapStrategy=StandardSwap(),
-    swap_every::Integer=2,
+    swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
+    swap_every::Integer=10,
     adapt::Bool=false,
     adapt_target::Real=0.234,
     adapt_stepsize::Real=1,
@@ -104,7 +107,7 @@ function tempered(
     adapt_scale=defaultscale(adapt_schedule, inverse_temperatures),
     kwargs...
 )
-    swap_every >= 2 || error("This must be a positive integer greater than 1.")
+    swap_every > 0 || error("`swap_every` must take a positive integer value.")
     inverse_temperatures = check_inverse_temperatures(inverse_temperatures)
     adaptation_states = init_adaptation(
         adapt_schedule, inverse_temperatures, adapt_target, adapt_scale, adapt_eta, adapt_stepsize

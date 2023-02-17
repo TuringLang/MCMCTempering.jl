@@ -27,9 +27,12 @@ export tempered,
     tempered_sample,
     TemperedSampler,
     make_tempered_model,
-    StandardSwap,
-    RandomPermutationSwap,
-    NonReversibleSwap
+    ReversibleSwap,
+    NonReversibleSwap,
+    SingleSwap,
+    SingleRandomSwap,
+    RandomSwap,
+    NoSwap
 
 # TODO: Should we make this trait-based instead?
 implements_logdensity(x) = LogDensityProblems.capabilities(x) !== nothing
