@@ -120,7 +120,7 @@ function no_swap_step(
     @set! state.transitions_and_states = [
         AbstractMCMC.step(
             rng,
-            make_tempered_model(sampler, model, β_for_process(state, i)),
+            make_tempered_model(sampler, model, beta_for_process(state, i)),
             sampler_for_process(sampler, state, i),
             state_for_process(state, i);
             kwargs...
