@@ -107,6 +107,7 @@ function tempered(
     adapt_scale=defaultscale(adapt_schedule, inverse_temperatures),
     kwargs...
 )
+    !(adapt && typeof(swap_strategy) <: Union{RandomSwap, SingleRandomSwap}) || error("Adaptation of the inverse temperature ladder is not currently supported under the chosen swap strategy.")
     swap_every > 1 || error("`swap_every` must take a positive integer value greater than 1.")
     inverse_temperatures = check_inverse_temperatures(inverse_temperatures)
     adaptation_states = init_adaptation(
