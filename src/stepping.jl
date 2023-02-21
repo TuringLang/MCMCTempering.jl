@@ -133,7 +133,7 @@ end
 """
     swap([strategy::AbstractSwapStrategy, ]rng, model, sampler, state)
 
-Return a new `state`, with temperatures potentially swapped according to `strategy`.
+Return a new `state`, with temperatures possibly swapped according to `strategy`.
 
 If no `strategy` is provided, the return-value of [`swapstrategy`](@ref) called on `sampler`
 is used.
