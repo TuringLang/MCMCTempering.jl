@@ -174,10 +174,10 @@ function swap_attempt(rng, model, sampler, state, i, j, adapt)
     # adapted before a new `inverse_temperatures` is generated and returned.
     if adapt
         ρs = adapt!!(
-            state.adaptation_states, state.inverse_temperatures, i, min(one(logα), exp(logα))
+            state.adaptation_states, state.chain_to_beta, i, min(one(logα), exp(logα))
         )
         @set! state.adaptation_states = ρs
-        @set! state.inverse_temperatures = update_inverse_temperatures(ρs, state.inverse_temperatures)
+        @set! state.chain_to_beta = update_inverse_temperatures(ρs, state.chain_to_beta)
     end
     return state
 end
