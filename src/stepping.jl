@@ -88,14 +88,15 @@ function AbstractMCMC.step(
 )
     # Reset state
     @set! state.swap_acceptance_ratios = empty(state.swap_acceptance_ratios)
-    @set! state.is_swap = false
 
     if should_swap(sampler, state)
-        state = swap(rng, model, sampler, state)
+        state = swap_step(rng, model, sampler, state)
         @set! state.is_swap = true
+    else
+        state = no_swap_step(rng, model, sampler, state; kwargs...)
+        @set! state.is_swap = false
     end
 
-    state = no_swap_step(rng, model, sampler, state; kwargs...)
     @set! state.total_steps += 1
 
     # We want to return the transition for the _first_ chain, i.e. the chain usually corresponding to `β=1.0`.
@@ -131,23 +132,23 @@ function no_swap_step(
 end
 
 """
-    swap([strategy::AbstractSwapStrategy, ]rng, model, sampler, state)
+    swap_step([strategy::AbstractSwapStrategy, ]rng, model, sampler, state)
 
 Return a new `state`, with temperatures possibly swapped according to `strategy`.
 
 If no `strategy` is provided, the return-value of [`swapstrategy`](@ref) called on `sampler`
 is used.
 """
-function swap(
+function swap_step(
     rng::Random.AbstractRNG,
     model,
     sampler::TemperedSampler,
     state::TemperedState
 )
-    return swap(swapstrategy(sampler), rng, model, sampler, state)
+    return swap_step(swapstrategy(sampler), rng, model, sampler, state)
 end
 
-function swap(
+function swap_step(
     strategy::ReversibleSwap,
     rng::Random.AbstractRNG,
     model,
@@ -158,12 +159,12 @@ function swap(
     # corresponding to odd or even indices of the temperature ladder
     odd = rand([true, false])
     for k in [Int(2 * i - odd) for i in 1:(floor((numtemps(sampler) - 1 + odd) / 2))]
-        state = swap_attempt(rng, model, sampler, state, k, k + 1)
+        state = swap_attempt(rng, model, sampler, state, k, k + 1, sampler.adapt)
     end
     return state
 end
 
-function swap(
+function swap_step(
     strategy::NonReversibleSwap,
     rng::Random.AbstractRNG,
     model,
@@ -174,12 +175,12 @@ function swap(
     # to odd and even indices of the temperature ladder
     odd = state.total_steps % (2 * sampler.swap_every) != 0
     for k in [Int(2 * i - odd) for i in 1:(floor((numtemps(sampler) - 1 + odd) / 2))]
-        state = swap_attempt(rng, model, sampler, state, k, k + 1)
+        state = swap_attempt(rng, model, sampler, state, k, k + 1, sampler.adapt)
     end
     return state
 end
 
-function swap(
+function swap_step(
     strategy::SingleSwap,
     rng::Random.AbstractRNG,
     model,
@@ -189,10 +190,10 @@ function swap(
     # Randomly pick one index `k` of the temperature ladder and
     # attempt a swap between the corresponding chain and its neighbour
     k = rand(rng, 1:(numtemps(sampler) - 1))
-    return swap_attempt(rng, model, sampler, state, k, k + 1)
+    return swap_attempt(rng, model, sampler, state, k, k + 1, sampler.adapt)
 end
 
-function swap(
+function swap_step(
     strategy::SingleRandomSwap,
     rng::Random.AbstractRNG,
     model,
@@ -204,10 +205,10 @@ function swap(
     chains = Set(1:numtemps(sampler))
     i = pop!(chains, rand(rng, chains))
     j = pop!(chains, rand(rng, chains))
-    return swap_attempt(rng, model, sampler, state, i, j)
+    return swap_attempt(rng, model, sampler, state, i, j, sampler.adapt)
 end
 
-function swap(
+function swap_step(
     strategy::RandomSwap,
     rng::Random.AbstractRNG,
     model,
@@ -220,12 +221,12 @@ function swap(
     while length(chains) >= 2
         i = pop!(chains, rand(rng, chains))
         j = pop!(chains, rand(rng, chains))
-        state = swap_attempt(rng, model, sampler, state, i, j)
+        state = swap_attempt(rng, model, sampler, state, i, j, sampler.adapt)
     end
     return state
 end
 
-function swap(
+function swap_step(
     strategy::NoSwap,
     rng::Random.AbstractRNG,
     model,

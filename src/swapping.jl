@@ -141,7 +141,7 @@ end
 Attempt to swap the temperatures of two chains by tempering the densities and
 calculating the swap acceptance ratio; then swapping if it is accepted.
 """
-function swap_attempt(rng, model, sampler, state, i, j)
+function swap_attempt(rng, model, sampler, state, i, j, adapt)
     # Extract the relevant transitions.
     sampler_i = sampler_for_chain(sampler, state, i)
     sampler_j = sampler_for_chain(sampler, state, j)
@@ -172,7 +172,7 @@ function swap_attempt(rng, model, sampler, state, i, j)
 
     # Adaptation steps affects `ρs` and `inverse_temperatures`, as the `ρs` is
     # adapted before a new `inverse_temperatures` is generated and returned.
-    if sampler.adapt
+    if adapt
         ρs = adapt!!(
             state.adaptation_states, state.inverse_temperatures, i, min(one(logα), exp(logα))
         )
