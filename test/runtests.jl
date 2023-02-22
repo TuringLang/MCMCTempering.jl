@@ -64,7 +64,7 @@ function test_and_sample_model(
     kwargs...
 )
     # TODO: Remove this when no longer necessary.
-    num_iterations_tempered = Int(ceil(num_iterations * swap_every ÷ (swap_every - 1)))
+    num_iterations_tempered = Int(ceil(num_iterations * swap_every / (swap_every - 1)))
 
     # Make the tempered sampler.
     sampler_tempered = tempered(
@@ -149,7 +149,7 @@ function test_and_sample_model(
     # Compare the tempered sampler to the untempered sampler.
     state_tempered = states_tempered[end]
     chain_tempered = AbstractMCMC.bundle_samples(
-        samples_tempered,
+        samples_tempered[findall((!).(getproperty.(states_tempered, :is_swap)))],
         MCMCTempering.maybe_wrap_model(model),
         sampler_tempered.sampler,
         MCMCTempering.state_for_chain(state_tempered),
@@ -190,12 +190,10 @@ function compare_chains(
     if compare_ess
         ess = MCMCChains.ess_rhat(chain).nt.ess
         ess_tempered = MCMCChains.ess_rhat(chain_tempered).nt.ess
-        # HACK: Just make sure it's not doing _horrible_. Though we'd hope it would
-        # actually do better than the internal sampler.
         if isbroken
-            @test_broken all(ess .≥ ess_tempered .* 0.5)
+            @test_broken all(ess_tempered .≥ ess)
         else
-            @test all(ess .≥ ess_tempered .* 0.5)
+            @test all(ess_tempered .≥ ess)
         end
     end
 end
@@ -370,7 +368,7 @@ end
         end
 
         @testset "AdvancedHMC.jl" begin
-            num_iterations = 1_000
+            num_iterations = 10_000
 
             # Set up HMC smpler.
             initial_ϵ = 0.1
@@ -391,8 +389,8 @@ end
             chain_tempered = test_and_sample_model(
                 model,
                 sampler_hmc,
-                [1, 0.9, 0.75, 0.5, 0.25, 0.1],
-                swap_strategy=MCMCTempering.NonReversibleSwap(),
+                [1, 0.5, 0.1],
+                swap_strategy=MCMCTempering.ReversibleSwap(),
                 num_iterations=num_iterations,
                 swap_every=10,
                 adapt=false,
@@ -440,9 +438,9 @@ end
                 param_names=param_names
             )
             map_parameters!(b, chain_tempered)
-
-            # TODO: Make it not broken, i.e. produce reasonable results.
-            compare_chains(chain_mh, chain_tempered, atol=0.2, compare_std=false, compare_ess=true, isbroken=false)
+            
+            # Need a large atol as MH is not great on its own
+            compare_chains(chain_mh, chain_tempered, atol=0.4, compare_std=false, compare_ess=true, isbroken=false)
         end
     end
 end
