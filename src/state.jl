@@ -133,7 +133,7 @@ Return the state corresponding to the process indexed by `I...`.
 state_for_process(state::TemperedState, I...) = state.transitions_and_states[I...][2]
 
 """
-    β_for_chain(state[, I...])
+    beta_for_chain(state[, I...])
 
 Return the β corresponding to the chain indexed by `I...`.
 If `I...` is not specified, the β corresponding to `β=1.0` will be returned.
@@ -144,7 +144,7 @@ beta_for_chain(state::TemperedState, I...) = beta_for_chain(state.chain_to_beta,
 beta_for_chain(chain_to_beta::AbstractArray, I...) = chain_to_beta[I...]
 
 """
-    β_for_process(state, I...)
+    beta_for_process(state, I...)
 
 Return the β corresponding to the process indexed by `I...`.
 """
