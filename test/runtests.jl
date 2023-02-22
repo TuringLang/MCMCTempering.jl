@@ -226,8 +226,8 @@ end
         )
             @test MCMCTempering.process_to_chain(process_to_chain, chain_idx) == process_idx
             @test MCMCTempering.chain_to_process(chain_to_process, process_idx) == chain_idx
-            @test MCMCTempering.β_for_chain(chain_to_beta, chain_idx) == process_β
-            @test MCMCTempering.β_for_process(chain_to_beta, process_to_chain, process_idx) == process_β
+            @test MCMCTempering.beta_for_chain(chain_to_beta, chain_idx) == process_β
+            @test MCMCTempering.beta_for_process(chain_to_beta, process_to_chain, process_idx) == process_β
         end
 
         # Make swap chain 2 (now on process 1) ↔ chain 3 (now on process 3)
@@ -242,8 +242,8 @@ end
         )
             @test MCMCTempering.process_to_chain(process_to_chain, process_idx) == chain_idx
             @test MCMCTempering.chain_to_process(chain_to_process, chain_idx) == process_idx
-            @test MCMCTempering.β_for_chain(chain_to_beta, chain_idx) == process_β
-            @test MCMCTempering.β_for_process(chain_to_beta, process_to_chain, process_idx) == process_β
+            @test MCMCTempering.beta_for_chain(chain_to_beta, chain_idx) == process_β
+            @test MCMCTempering.beta_for_process(chain_to_beta, process_to_chain, process_idx) == process_β
         end
     end
 
