@@ -4,7 +4,7 @@
 Return `true` if a swap should happen at this iteration, and `false` otherwise.
 """
 function should_swap(sampler::TemperedSampler, state::TemperedState)
-    return state.total_steps % sampler.swap_every == 0
+    return state.total_steps % sampler.swap_every == 1
 end
 
 get_init_params(x, _)= x
