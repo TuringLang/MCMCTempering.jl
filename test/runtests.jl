@@ -215,7 +215,7 @@ end
         chain_to_beta = [1.0, 0.75, 0.5, 0.25]
 
         # Make swap chain 1 (now on process 1) ↔ chain 2 (now on process 2)
-        MCMCTempering.swap_betas!(chain_to_process, process_to_chain, 1)
+        MCMCTempering.swap_betas!(chain_to_process, process_to_chain, 1, 2)
         # Expected result: chain 1 is now on process 2, chain 2 is now on process 1.
         target_process_to_chain = [2, 1, 3, 4]
         @test process_to_chain[chain_to_process] == 1:length(process_to_chain)
@@ -231,7 +231,7 @@ end
         end
 
         # Make swap chain 2 (now on process 1) ↔ chain 3 (now on process 3)
-        MCMCTempering.swap_betas!(chain_to_process, process_to_chain, 2)
+        MCMCTempering.swap_betas!(chain_to_process, process_to_chain, 2, 3)
         # Expected result: chain 3 is now on process 1, chain 2 is now on process 3.
         target_process_to_chain = [3, 1, 2, 4]
         @test process_to_chain[chain_to_process] == 1:length(process_to_chain)
@@ -271,6 +271,7 @@ end
         # `atol` is fairly high because we haven't run this for "too" long. 
         @test mean(chain_tempered[:, 1, :]) ≈ 1 atol=0.2
     end
+
     @testset "GMM 1D" begin
         num_iterations = 10_000
         model = DistributionLogDensity(
