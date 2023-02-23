@@ -355,7 +355,7 @@ end
         # Get the parameter names.
         param_names = map(Symbol, DynamicPPL.TestUtils.varnames(model_dppl))
         # Get bijector so we can get back to unconstrained space afterwards.
-        b = inv(Turing.bijector(model_dppl))
+        b = inverse(Turing.bijector(model_dppl))
         # Construct the `LogDensityFunction` which supports LogDensityProblems.jl-interface.
         model = ADgradient(:ForwardDiff, DynamicPPL.LogDensityFunction(model_dppl, vi))
 
@@ -368,7 +368,7 @@ end
         end
 
         @testset "AdvancedHMC.jl" begin
-            num_iterations = 10_000
+            num_iterations = 20_000
 
             # Set up HMC smpler.
             initial_ϵ = 0.1
@@ -389,7 +389,7 @@ end
             chain_tempered = test_and_sample_model(
                 model,
                 sampler_hmc,
-                [1, 0.5, 0.1],
+                [1, 0.25, 0.1, 0.01],
                 swap_strategy=MCMCTempering.ReversibleSwap(),
                 num_iterations=num_iterations,
                 swap_every=10,
