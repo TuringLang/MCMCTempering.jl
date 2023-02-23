@@ -375,7 +375,7 @@ end
             integrator = AdvancedHMC.Leapfrog(initial_ϵ)
             proposal = AdvancedHMC.NUTS{AdvancedHMC.MultinomialTS, AdvancedHMC.GeneralisedNoUTurn}(integrator)
             metric = AdvancedHMC.DiagEuclideanMetric(LogDensityProblems.dimension(model))
-            adaptor = StanHMCAdaptor(MassMatrixAdaptor(metric), StepSizeAdaptor(0.8, integrator))
+            adaptor = AdvancedHMC.StanHMCAdaptor(AdvancedHMC.MassMatrixAdaptor(metric), AdvancedHMC.StepSizeAdaptor(0.8, integrator))
             sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric, adaptor)
 
             # Sample using HMC.
