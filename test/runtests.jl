@@ -368,14 +368,15 @@ end
         end
 
         @testset "AdvancedHMC.jl" begin
-            num_iterations = 20_000
+            num_iterations = 2_000
 
             # Set up HMC smpler.
             initial_ϵ = 0.1
             integrator = AdvancedHMC.Leapfrog(initial_ϵ)
             proposal = AdvancedHMC.NUTS{AdvancedHMC.MultinomialTS, AdvancedHMC.GeneralisedNoUTurn}(integrator)
             metric = AdvancedHMC.DiagEuclideanMetric(LogDensityProblems.dimension(model))
-            sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric)
+            adaptor = StanHMCAdaptor(MassMatrixAdaptor(metric), StepSizeAdaptor(0.8, integrator))
+            sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric, adaptor)
 
             # Sample using HMC.
             samples_hmc = sample(model, sampler_hmc, num_iterations; init_params=copy(init_params), progress=false)
