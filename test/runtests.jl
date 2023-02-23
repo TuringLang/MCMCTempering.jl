@@ -50,7 +50,7 @@ function test_and_sample_model(
     model,
     sampler,
     inverse_temperatures,
-    swap_strategy=MCMCTempering.StandardSwap();
+    swap_strategy=MCMCTempering.SingleSwap();
     mean_swap_rate_bound=0.1,
     compare_mean_swap_rate=≥,
     num_iterations=2_000,
@@ -64,7 +64,7 @@ function test_and_sample_model(
     kwargs...
 )
     # TODO: Remove this when no longer necessary.
-    num_iterations_tempered = Int(ceil(num_iterations * swap_every ÷ (swap_every - 1)))
+    num_iterations_tempered = Int(ceil(num_iterations * swap_every / (swap_every - 1)))
 
     # Make the tempered sampler.
     sampler_tempered = tempered(
@@ -149,7 +149,7 @@ function test_and_sample_model(
     # Compare the tempered sampler to the untempered sampler.
     state_tempered = states_tempered[end]
     chain_tempered = AbstractMCMC.bundle_samples(
-        samples_tempered,
+        samples_tempered[findall((!).(getproperty.(states_tempered, :is_swap)))],
         MCMCTempering.maybe_wrap_model(model),
         sampler_tempered.sampler,
         MCMCTempering.state_for_chain(state_tempered),
@@ -190,12 +190,10 @@ function compare_chains(
     if compare_ess
         ess = MCMCChains.ess_rhat(chain).nt.ess
         ess_tempered = MCMCChains.ess_rhat(chain_tempered).nt.ess
-        # HACK: Just make sure it's not doing _horrible_. Though we'd hope it would
-        # actually do better than the internal sampler.
         if isbroken
-            @test_broken all(ess .≥ ess_tempered .* 0.5)
+            @test_broken all(ess_tempered .≥ ess)
         else
-            @test all(ess .≥ ess_tempered .* 0.5)
+            @test all(ess_tempered .≥ ess)
         end
     end
 end
@@ -215,7 +213,7 @@ end
         chain_to_beta = [1.0, 0.75, 0.5, 0.25]
 
         # Make swap chain 1 (now on process 1) ↔ chain 2 (now on process 2)
-        MCMCTempering.swap_betas!(chain_to_process, process_to_chain, 1)
+        MCMCTempering.swap_betas!(chain_to_process, process_to_chain, 1, 2)
         # Expected result: chain 1 is now on process 2, chain 2 is now on process 1.
         target_process_to_chain = [2, 1, 3, 4]
         @test process_to_chain[chain_to_process] == 1:length(process_to_chain)
@@ -231,7 +229,7 @@ end
         end
 
         # Make swap chain 2 (now on process 1) ↔ chain 3 (now on process 3)
-        MCMCTempering.swap_betas!(chain_to_process, process_to_chain, 2)
+        MCMCTempering.swap_betas!(chain_to_process, process_to_chain, 2, 3)
         # Expected result: chain 3 is now on process 1, chain 2 is now on process 3.
         target_process_to_chain = [3, 1, 2, 4]
         @test process_to_chain[chain_to_process] == 1:length(process_to_chain)
@@ -271,6 +269,7 @@ end
         # `atol` is fairly high because we haven't run this for "too" long. 
         @test mean(chain_tempered[:, 1, :]) ≈ 1 atol=0.2
     end
+
     @testset "GMM 1D" begin
         num_iterations = 10_000
         model = DistributionLogDensity(
@@ -325,9 +324,11 @@ end
 
         # Different swap strategies to test.
         swapstrategies = [
-            MCMCTempering.StandardSwap(),
-            MCMCTempering.RandomPermutationSwap(),
-            MCMCTempering.NonReversibleSwap()
+            MCMCTempering.ReversibleSwap(),
+            MCMCTempering.NonReversibleSwap(),
+            MCMCTempering.SingleSwap(),
+            MCMCTempering.SingleRandomSwap(),
+            MCMCTempering.RandomSwap()
         ]
 
         @testset "$(swapstrategy)" for swapstrategy in swapstrategies
@@ -354,7 +355,7 @@ end
         # Get the parameter names.
         param_names = map(Symbol, DynamicPPL.TestUtils.varnames(model_dppl))
         # Get bijector so we can get back to unconstrained space afterwards.
-        b = inv(Turing.bijector(model_dppl))
+        b = inverse(Turing.bijector(model_dppl))
         # Construct the `LogDensityFunction` which supports LogDensityProblems.jl-interface.
         model = ADgradient(:ForwardDiff, DynamicPPL.LogDensityFunction(model_dppl, vi))
 
@@ -367,14 +368,15 @@ end
         end
 
         @testset "AdvancedHMC.jl" begin
-            num_iterations = 1_000
+            num_iterations = 2_000
 
             # Set up HMC smpler.
             initial_ϵ = 0.1
             integrator = AdvancedHMC.Leapfrog(initial_ϵ)
             proposal = AdvancedHMC.NUTS{AdvancedHMC.MultinomialTS, AdvancedHMC.GeneralisedNoUTurn}(integrator)
             metric = AdvancedHMC.DiagEuclideanMetric(LogDensityProblems.dimension(model))
-            sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric)
+            adaptor = AdvancedHMC.StanHMCAdaptor(AdvancedHMC.MassMatrixAdaptor(metric), AdvancedHMC.StepSizeAdaptor(0.8, integrator))
+            sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric, adaptor)
 
             # Sample using HMC.
             samples_hmc = sample(model, sampler_hmc, num_iterations; init_params=copy(init_params), progress=false)
@@ -388,8 +390,8 @@ end
             chain_tempered = test_and_sample_model(
                 model,
                 sampler_hmc,
-                [1, 0.9, 0.75, 0.5, 0.25, 0.1],
-                swap_strategy=MCMCTempering.NonReversibleSwap(),
+                [1, 0.25, 0.1, 0.01],
+                swap_strategy=MCMCTempering.ReversibleSwap(),
                 num_iterations=num_iterations,
                 swap_every=10,
                 adapt=false,
@@ -428,7 +430,7 @@ end
                 model,
                 sampler_mh,
                 [1, 0.9, 0.75, 0.5, 0.25, 0.1],
-                swap_strategy=MCMCTempering.StandardSwap(),
+                swap_strategy=MCMCTempering.ReversibleSwap(),
                 num_iterations=num_iterations,
                 swap_every=2,
                 adapt=false,
@@ -437,9 +439,9 @@ end
                 param_names=param_names
             )
             map_parameters!(b, chain_tempered)
-
-            # TODO: Make it not broken, i.e. produce reasonable results.
-            compare_chains(chain_mh, chain_tempered, atol=0.2, compare_std=false, compare_ess=true, isbroken=false)
+            
+            # Need a large atol as MH is not great on its own
+            compare_chains(chain_mh, chain_tempered, atol=0.4, compare_std=false, compare_ess=true, isbroken=false)
         end
     end
 end

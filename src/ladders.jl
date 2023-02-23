@@ -1,11 +1,14 @@
 """
-    get_scaling_val(N_it, swap_strategy)
+    get_scaling_val(N_it, <:AbstractSwapStrategy)
 
 Calculates a scaling factor for polynomial step size between inverse temperatures.
 """
-get_scaling_val(N_it, ::StandardSwap) = N_it - 1
+get_scaling_val(N_it, ::ReversibleSwap) = 2
 get_scaling_val(N_it, ::NonReversibleSwap) = 2
-get_scaling_val(N_it, ::RandomPermutationSwap) = 1
+get_scaling_val(N_it, ::SingleSwap) = N_it - 1
+get_scaling_val(N_it, ::SingleRandomSwap) = N_it - 1
+get_scaling_val(N_it, ::RandomSwap) = 1
+get_scaling_val(N_it, ::NoSwap) = N_it - 1
 
 """
     generate_inverse_temperatures(N_it, swap_strategy)
