@@ -25,34 +25,34 @@ Provide either `inverse_temperatures` or `N_it` (and a `swap_strategy`) to gener
 """
 function tempered_sample(
     model,
-    sampler::AbstractMCMC.AbstractSampler,
+    proto_sampler::Union{<:Function,Vector{<:AbstractMCMC.AbstractSampler},AbstractMCMC.AbstractSampler},
     N::Integer,
-    arg::Union{Integer, Vector{<:Real}};
+    it_arg::Union{Integer, Vector{<:Real}};
     kwargs...
 )
-    return tempered_sample(Random.default_rng(), model, sampler, N, arg; kwargs...)
+    return tempered_sample(Random.default_rng(), model, proto_sampler, N, it_arg; kwargs...)
 end
 
 function tempered_sample(
     rng,
     model,
-    sampler::AbstractMCMC.AbstractSampler,
+    proto_sampler::Union{<:Function,Vector{<:AbstractMCMC.AbstractSampler},AbstractMCMC.AbstractSampler},
     N::Integer,
     N_it::Integer;
     swap_strategy::AbstractSwapStrategy = SingleSwap(),
     kwargs...
 )
-    return tempered_sample(model, sampler, N, generate_inverse_temperatures(N_it, swap_strategy); swap_strategy=swap_strategy, kwargs...)
+    return tempered_sample(model, proto_sampler, N, generate_inverse_temperatures(N_it, swap_strategy); swap_strategy=swap_strategy, kwargs...)
 end
 
 function tempered_sample(
     rng,
     model,
-    sampler::AbstractMCMC.AbstractSampler,
+    proto_sampler::Union{<:Function,Vector{<:AbstractMCMC.AbstractSampler},AbstractMCMC.AbstractSampler},
     N::Integer,
     inverse_temperatures::Vector{<:Real};
     kwargs...
 )
-    tempered_sampler = tempered(sampler, inverse_temperatures; kwargs...)
+    tempered_sampler = tempered(proto_sampler, inverse_temperatures; model=model, kwargs...)
     return AbstractMCMC.sample(rng, model, tempered_sampler, N; kwargs...)
 end
