@@ -191,17 +191,18 @@ include("functions.jl")
         @testset "AdvancedHMC.jl" begin
             num_iterations = 2_000
 
-            # Set up HMC smpler.
-            initial_ϵ = 0.1
-            integrator = AdvancedHMC.Leapfrog(initial_ϵ)
-            proposal = AdvancedHMC.NUTS{AdvancedHMC.MultinomialTS, AdvancedHMC.GeneralisedNoUTurn}(integrator)
-            metric = AdvancedHMC.DiagEuclideanMetric(LogDensityProblems.dimension(model))
-            adaptor = AdvancedHMC.StanHMCAdaptor(AdvancedHMC.MassMatrixAdaptor(metric), AdvancedHMC.StepSizeAdaptor(0.8, integrator))
-            sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric, adaptor)
-
+            function create_HMCSampler(model)
+                # Define a Hamiltonian system
+                integrator = AdvancedHMC.Leapfrog(0.1)
+                proposal = AdvancedHMC.NUTS{AdvancedHMC.MultinomialTS, AdvancedHMC.GeneralisedNoUTurn}(integrator)
+                metric = AdvancedHMC.DiagEuclideanMetric(LogDensityProblems.dimension(model))
+                adaptor = AdvancedHMC.StanHMCAdaptor(AdvancedHMC.MassMatrixAdaptor(metric), AdvancedHMC.StepSizeAdaptor(0.8, integrator))
+                return AdvancedHMC.HMCSampler(proposal, metric, adaptor)
+            end
+            
             # Sample using HMC.
             chain_hmc = sample(
-                model, sampler_hmc, num_iterations;
+                model, create_HMCSampler(model), num_iterations;
                 init_params=copy(init_params), progress=false,
                 chain_type=MCMCChains.Chains, param_names=param_names
             )
@@ -210,8 +211,8 @@ include("functions.jl")
             # Sample using tempered HMC.
             chain_tempered = test_and_sample_model(
                 model,
-                sampler_hmc,
-                [1, 0.25, 0.1, 0.01],
+                model -> create_HMCSampler(model),
+                0.5 .^ collect(0:3),
                 swap_strategy=MCMCTempering.ReversibleSwap(),
                 num_iterations=num_iterations,
                 swap_every=10,
@@ -246,7 +247,7 @@ include("functions.jl")
             chain_tempered = test_and_sample_model(
                 model,
                 sampler_mh,
-                [1, 0.9, 0.75, 0.5, 0.25, 0.1],
+                0.5 .^ collect(0:3),
                 swap_strategy=MCMCTempering.ReversibleSwap(),
                 num_iterations=num_iterations,
                 swap_every=2,

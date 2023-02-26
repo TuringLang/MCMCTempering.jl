@@ -53,6 +53,7 @@ function test_and_sample_model(
         swap_strategy=swap_strategy,
         swap_every=swap_every,
         adapt_target=adapt_target,
+        model=model,
         kwargs...
     )
 
@@ -130,7 +131,7 @@ function test_and_sample_model(
     chain_tempered = AbstractMCMC.bundle_samples(
         samples_tempered[findall((!).(getproperty.(states_tempered, :is_swap)))],
         MCMCTempering.maybe_wrap_model(model),
-        sampler,
+        typeof(sampler) <: Function ? sampler(model) : sampler,
         samples_tempered[end],
         MCMCChains.Chains;
         param_names=param_names
