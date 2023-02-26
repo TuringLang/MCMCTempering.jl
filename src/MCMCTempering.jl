@@ -43,7 +43,7 @@ function AbstractMCMC.bundle_samples(
     ts::AbstractVector,
     model::AbstractMCMC.AbstractModel,
     sampler::TemperedSampler,
-    state::TemperedState,
+    state,
     chain_type::Type;
     kwargs...
 )
