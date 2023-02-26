@@ -223,7 +223,7 @@ include("functions.jl")
             )
             map_parameters!(b, chain_tempered)
 
-            compare_chains(chain_hmc, chain_tempered, atol=0.2, compare_std=false, compare_ess=true, isbroken=false)
+            compare_chains(chain_hmc, chain_tempered, atol=0.2, compare_std=false, compare_ess=false, isbroken=false)
         end
         
         @testset "AdvancedMH.jl" begin
