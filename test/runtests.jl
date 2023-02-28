@@ -16,7 +16,6 @@ using Turing: Turing, DynamicPPL
 
 include("utils.jl")
 include("compat.jl")
-include("test_utils.jl")
 
 
 """
