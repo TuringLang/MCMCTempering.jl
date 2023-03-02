@@ -4,7 +4,8 @@ using Distributions: StatsFuns
     η
     c
 end
-function get(step::PolynomialStep, k::Real)
+
+function Base.get(step::PolynomialStep, k::Real)
     return step.c * (k + 1) ^ (-step.η)
 end
 
