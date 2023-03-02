@@ -22,7 +22,7 @@ function StateHistoryCallback(states, selector=deepcopy)
     return StateHistoryCallback{typeof(states), typeof(selector)}(states, selector)
 end
 
-function (cb::StateHistoryCallback)(rng, model, sampler, sample, state, i; kwargs...)
+function (cb::StateHistoryCallback)(rng, model, sampler, transition, state, iteration; kwargs...)
     push!(cb.states, cb.selector(state))
     return nothing
 end
