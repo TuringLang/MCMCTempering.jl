@@ -154,15 +154,3 @@ function beta_for_process(chain_to_beta::AbstractArray, proc2chain::AbstractArra
     return beta_for_chain(chain_to_beta, process_to_chain(proc2chain, I...))
 end
 
-"""
-    getparams(transition)
-    getparams(::Type, transition)
-
-Return the parameters contained in `transition`.
-
-If a type is specified, the parameters are returned in said type.
-
-# Notes
-This method is meant to be overloaded for the different transitions types.
-"""
-function getparams end

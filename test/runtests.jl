@@ -1,22 +1,4 @@
-using MCMCTempering
-using Test
-using Distributions
-using AdvancedMH
-using MCMCChains
-using Bijectors
-using LinearAlgebra
-using AbstractMCMC
-using LogDensityProblems: LogDensityProblems, logdensity, logdensity_and_gradient
-using LogDensityProblemsAD
-using ForwardDiff: ForwardDiff
-using AdvancedMH: AdvancedMH
-using AdvancedHMC: AdvancedHMC
-using Turing: Turing, DynamicPPL
-
-
-include("utils.jl")
-include("compat.jl")
-
+include("setup.jl")
 
 """
     test_and_sample_model(model, sampler, inverse_temperatures[, swap_strategy]; kwargs...)
@@ -444,4 +426,6 @@ end
             compare_chains(chain_mh, chain_tempered, atol=0.4, compare_std=false, compare_ess=true, isbroken=false)
         end
     end
+
+    include("abstractmcmc.jl")
 end

@@ -113,8 +113,8 @@ and calls [`logdensity`](@ref) on the model returned from [`make_tempered_model`
 function compute_tempered_logdensities(model, sampler, transition, transition_other, β)
     tempered_model = make_tempered_model(sampler, model, β)
     return (
-        logdensity(tempered_model, getparams(transition)),
-        logdensity(tempered_model, getparams(transition_other))
+        logdensity(tempered_model, getparams(tempered_model, transition)),
+        logdensity(tempered_model, getparams(tempered_model, transition_other))
     )
 end
 function compute_tempered_logdensities(
