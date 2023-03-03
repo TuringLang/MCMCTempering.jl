@@ -17,7 +17,7 @@ Moreover, suppose we also have 4 workers/processes for which we run these chains
 (can also be serial wlog).
 
 We can then perform a swap in two different ways:
-1. Swap the the _states_ between each process, i.e. permute `transitions_and_states`.
+1. Swap the the _states_ between each process, i.e. permute `transitions` and `states`.
 2. Swap the _temperatures_ between each process, i.e. permute `chain_to_beta`.
 
 (1) is possibly the most intuitive approach since it means that the i-th worker/process
@@ -52,18 +52,22 @@ Chains:    process_to_chain    chain_to_process   inverse_temperatures[process_t
 In this case, the chain `X` can be reconstructed as:
 
 ```julia
-X[1] = states[1].transitions_and_states[1]
-X[2] = states[2].transitions_and_states[2]
-X[3] = states[3].transitions_and_states[2]
-X[4] = states[4].transitions_and_states[3]
-X[5] = states[5].transitions_and_states[3]
+X[1] = states[1].transitions[1]
+X[2] = states[2].transitions[2]
+X[3] = states[3].transitions[2]
+X[4] = states[4].transitions[3]
+X[5] = states[5].transitions[3]
 ```
+
+and similarly for the states.
 
 The indices here are exactly those represented by `states[k].chain_to_process[1]`.
 """
 @concrete struct TemperedState
-    "collection of `(transition, state)` pairs for each process"
-    transitions_and_states
+    "collection of transitions for each process"
+    transitions
+    "collection of states for each process"
+    states
     "collection of (inverse) temperatures β corresponding to each chain"
     chain_to_beta
     "collection indices such that `chain_to_process[i] = j` if the j-th process corresponds to the i-th chain"
@@ -114,10 +118,9 @@ transition_for_chain(state::TemperedState, I...) = transition_for_process(state,
 
 Return the transition corresponding to the process indexed by `I...`.
 """
-transition_for_process(state::TemperedState, I...) = state.transitions_and_states[I...][1]
-function transition_for_process(state::TemperedState{<:Tuple{<:MultipleTransitions,<:MultipleStates}}, I...)
-    return state.transitions_and_states[1].transitions[I...]
-end
+transition_for_process(state::TemperedState, I...) = transition_for_process(state.transitions, I...)
+transition_for_process(transitions, I...) = transitions[I...]
+transition_for_process(transitions::MultipleTransitions, I...) = transitions.transitions[I...]
 
 """
     state_for_chain(state[, I...])
@@ -133,10 +136,9 @@ state_for_chain(state::TemperedState, I...) = state_for_process(state, chain_to_
 
 Return the state corresponding to the process indexed by `I...`.
 """
-state_for_process(state::TemperedState, I...) = state.transitions_and_states[I...][2]
-function state_for_process(state::TemperedState{<:Tuple{<:MultipleTransitions,<:MultipleStates}}, I...)
-    return state.transitions_and_states[2].states[I...]
-end
+state_for_process(state::TemperedState, I...) = state_for_process(state.states, I...)
+state_for_process(states, I...) = states[I...]
+state_for_process(states::MultipleStates, I...) = states.states[I...]
 
 """
     beta_for_chain(state[, I...])
