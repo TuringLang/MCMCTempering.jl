@@ -230,7 +230,7 @@ end
     end
 
     @testset "Simple MvNormal with no expected swaps" begin
-        num_iterations = 1_000
+        num_iterations = 5_000
         d = 1
         model = DistributionLogDensity(MvNormal(ones(d), I))
 
