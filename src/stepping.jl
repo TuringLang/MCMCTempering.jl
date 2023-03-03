@@ -115,20 +115,12 @@ function no_swap_step(
     state::TemperedState;
     kwargs...
 )
-    # `TemperedState` has the transitions and states in the order of
-    # the processes, and performs swaps by moving the (inverse) temperatures
-    # `β` between the processes, rather than moving states between processes
-    # and keeping the `β` local to each process.
-    # 
-    # Therefore we iterate over the processes and then extract the corresponding
-    # `β`, `sampler` and `state`, and take a step.
-
-    # Create a `MultiSampler` and `MultiModel`.
-    multimodel = MultiModel(make_tempered_model(sampler, model, beta_for_process(state, i)) for i in 1:numtemps(sampler))
+    # Create the multi-versions with the ordering corresponding to the processes.
+    multimodel = MultiModel(model_for_process(sampler, model, state, i) for i in 1:numtemps(sampler))
     multisampler = MultiSampler(sampler_for_process(sampler, state, i) for i in 1:numtemps(sampler))
     multistate = MultipleStates(state_for_process(state, i) for i in 1:numtemps(sampler))
 
-    # Step for the multi-chain.
+    # And then step.
     multitransition, multistate_next = AbstractMCMC.step(
         rng,
         multimodel,

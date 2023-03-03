@@ -160,7 +160,30 @@ function beta_for_process(chain_to_beta::AbstractArray, proc2chain::AbstractArra
     return beta_for_chain(chain_to_beta, process_to_chain(proc2chain, I...))
 end
 
+"""
+    model_for_chain(sampler, model, state, I...)
 
+Return the model corresponding to the chain indexed by `I...`.
+"""
+function model_for_chain(sampler, model, state, I...)
+    return make_tempered_model(sampler, model, beta_for_chain(state, I...))
+end
+
+"""
+    model_for_process(sampler, model, state, I...)
+
+Return the model corresponding to the process indexed by `I...`.
+"""
+function model_for_process(sampler, model, state, I...)
+    return make_tempered_model(sampler, model, beta_for_process(state, I...))
+end
+
+
+"""
+    TemperedTransition
+
+Transition type for tempered samplers.
+"""
 struct TemperedTransition{S}
     transition::S
     is_swap::Bool
@@ -168,5 +191,6 @@ end
 
 TemperedTransition(transition::S) where {S} = TemperedTransition(transition, false)
 
+getparams_and_logprob(transition::TemperedTransition) = getparams_and_logprob(transition.transition)
 getparams_and_logprob(model, transition::TemperedTransition) = getparams_and_logprob(model, transition.transition)
 
