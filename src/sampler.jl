@@ -98,6 +98,7 @@ function tempered(
     sampler::AbstractMCMC.AbstractSampler,
     inverse_temperatures::Vector{<:Real};
     swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
+    # TODO: Change `swap_every` to something like `number_of_iterations_per_swap`.
     swap_every::Integer=1,
     adapt::Bool=false,
     adapt_target::Real=0.234,
