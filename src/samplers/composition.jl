@@ -89,13 +89,13 @@ function AbstractMCMC.step(
     state_inner_prev, state_outer_prev = state.states
 
     # Update the inner state.
-    current_state_inner = state_from_state(model, state_outer_prev, state_inner_prev)
+    current_state_inner = state_from(model, state_inner_prev, state_outer_prev)
 
     # Take a step in the inner sampler.
     transition_inner, state_inner = AbstractMCMC.step(rng, model, sampler.sampler_inner, current_state_inner; kwargs...)
 
     # Take a step in the outer sampler.
-    current_state_outer = state_from_state(model, state_inner, state_outer_prev)
+    current_state_outer = state_from(model, state_outer_prev, state_inner)
     transition_outer, state_outer = AbstractMCMC.step(rng, model, sampler.sampler_outer, current_state_outer; kwargs...)
 
     return SequentialTransitions((transition_inner, transition_outer)), SequentialStates((state_inner, state_outer))
@@ -110,13 +110,13 @@ function AbstractMCMC.step(
     kwargs...
 )
     # Update the inner state.
-    current_state_inner = state_from_state(model, state.state_outer, state.state_inner)
+    current_state_inner = state_from(model, state.state_inner, state.state_outer)
 
     # Take a step in the inner sampler.
     state_inner = last(AbstractMCMC.step(rng, model, sampler.sampler_inner, current_state_inner; kwargs...))
 
     # Take a step in the outer sampler.
-    current_state_outer = state_from_state(model, state_inner, state.state_outer)
+    current_state_outer = state_from(model, state.state_outer, state_inner)
     transition_outer, state_outer = AbstractMCMC.step(rng, model, sampler.sampler_outer, current_state_outer; kwargs...)
 
     # Create the composition state.

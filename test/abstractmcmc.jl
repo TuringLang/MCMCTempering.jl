@@ -13,10 +13,10 @@
         # Taking two steps with `spl` should be equivalent to one step with `spl ∘ spl`.
         # Use the same initial state.
         state_initial = last(AbstractMCMC.step(Random.default_rng(), logdensity_model, spl))
-        state_composed_initial = MCMCTempering.state_from_state(
+        state_composed_initial = MCMCTempering.state_from(
             logdensity_model,
+            last(AbstractMCMC.step(Random.default_rng(), logdensity_model, spl_composed)),
             state_initial,
-            last(AbstractMCMC.step(Random.default_rng(), logdensity_model, spl_composed))
         )
 
         if MCMCTempering.saveall(spl_composed)
@@ -72,10 +72,10 @@
         # Taking two steps with `spl` should be equivalent to one step with `spl ∘ spl`.
         # Use the same initial state.
         state_initial = last(AbstractMCMC.step(Random.default_rng(), logdensity_model, spl))
-        state_repeated_initial = MCMCTempering.state_from_state(
+        state_repeated_initial = MCMCTempering.state_from(
             logdensity_model,
+            last(AbstractMCMC.step(Random.default_rng(), logdensity_model, spl_repeated)),
             state_initial,
-            last(AbstractMCMC.step(Random.default_rng(), logdensity_model, spl_repeated))
         )
 
         num_iters = 100
@@ -135,10 +135,10 @@
             states_initial = map(model_multi.models) do model
                 last(AbstractMCMC.step(Random.default_rng(), model, spl))
             end
-            states_multi_initial = MCMCTempering.state_from_state(
+            states_multi_initial = MCMCTempering.state_from(
                 model_multi,
+                last(AbstractMCMC.step(Random.default_rng(), model_multi, spl_multi)),
                 MCMCTempering.MultipleStates(states_initial),
-                last(AbstractMCMC.step(Random.default_rng(), model_multi, spl_multi))
             )
 
             # Taking a step with `spl_multi` on `multimodel` should be equivalent

@@ -42,15 +42,15 @@ See also: [`getparams_and_logprob`](@ref).
 setparams_and_logprob!!(model, state, params, logprob) = setparams_and_logprob!!(state, params, logprob)
 
 """
-    state_from_state(model, state_source, state_target[, transition_source, transition_target])
+    state_from(model, state_target, state_source[, transition_source, transition_target])
 
 Return a new state similar to `state_target` but updated from `state_source`, which could be
 a different type of state.
 """
-function state_from_state(model, state_source, state_target, transition_source, transition_target)
-    return state_from_state(model, state_source, state_target)
+function state_from(model, state_target, state_source, transition_target, transition_source)
+    return state_from(model, state_target, state_source)
 end
-function state_from_state(model, state_source, state_target)
+function state_from(model, state_target, state_source)
     params, logp = getparams_and_logprob(model, state_source)
     return setparams_and_logprob!!(model, state_target, params, logp)
 end
