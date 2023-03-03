@@ -47,7 +47,8 @@ function AbstractMCMC.step(
     # Need to `copy` because this might be mutated.
     chain_to_process = copy(process_to_chain)
     state = TemperedState(
-        (multitransition, multistate),
+        multitransition,
+        multistate,
         sampler.inverse_temperatures,
         process_to_chain,
         chain_to_process,
@@ -130,7 +131,8 @@ function no_swap_step(
     )
 
     # TODO: Maybe separate `transitions` and `states`?
-    @set! state.transitions_and_states = (multitransition, multistate_next)
+    @set! state.transitions = multitransition
+    @set! state.states = multistate_next
 
     return state
 end
