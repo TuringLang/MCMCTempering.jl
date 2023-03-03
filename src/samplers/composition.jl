@@ -48,7 +48,12 @@ struct CompositionState{S1,S2}
     state_inner::S2
 end
 
+getparams_and_logprob(state::CompositionState) = getparams_and_logprob(state.state_outer)
 getparams_and_logprob(model, state::CompositionState) = getparams_and_logprob(model, state.state_outer)
+
+function setparams_and_logprob!!(state::CompositionState, params, logprob)
+    return @set state.state_outer = setparams_and_logprob!!(state.state_outer, params, logprob)
+end
 function setparams_and_logprob!!(model, state::CompositionState, params, logprob)
     return @set state.state_outer = setparams_and_logprob!!(model, state.state_outer, params, logprob)
 end
@@ -84,7 +89,7 @@ function AbstractMCMC.step(
     state::SequentialStates;
     kwargs...
 )
-    @assert length(state.states) == 2 "Composition samplers only support MultipleStates with two states."
+    @assert length(state.states) == 2 "Composition samplers only support SequentialStates with two states."
 
     state_inner_prev, state_outer_prev = state.states
 
