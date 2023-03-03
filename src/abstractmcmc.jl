@@ -10,6 +10,7 @@ Get the parameters from the `state`.
 
 Default implementation uses [`getparams_and_logprob`](@ref).
 """
+getparams(state) = first(getparams_and_logprob(state))
 getparams(model, state) = first(getparams_and_logprob(model, state))
 
 """
@@ -19,6 +20,7 @@ Get the log probability of the `state`.
 
 Default implementation uses [`getparams_and_logprob`](@ref).
 """
+getlogprob(state) = last(getparams_and_logprob(state))
 getlogprob(model, state) = last(getparams_and_logprob(model, state))
 
 """
@@ -64,10 +66,14 @@ end
 
 # Since it's a _sequence_ of transitions, the parameters and logprobs are the ones of the
 # last transition/state.
+getparams_and_logprob(transitions::SequentialTransitions) = getparams_and_logprob(transitions.transitions[end])
 function getparams_and_logprob(model, transitions::SequentialTransitions)
     return getparams_and_logprob(model, transitions.transitions[end])
 end
 
+function setparams_and_logprob!!(transitions::SequentialTransitions, params, logprob)
+    return @set transitions.transitions[end] = setparams_and_logprob!!(transitions.transitions[end], params, logprob)
+end
 function setparams_and_logprob!!(model, transitions::SequentialTransitions, params, logprob)
     return @set transitions.transitions[end] = setparams_and_logprob!!(model, transitions.transitions[end], params, logprob)
 end
@@ -83,51 +89,96 @@ end
 
 # Since it's a _sequence_ of transitions, the parameters and logprobs are the ones of the
 # last transition/state.
+getparams_and_logprob(state::SequentialStates) = getparams_and_logprob(state.states[end])
 getparams_and_logprob(model, state::SequentialStates) = getparams_and_logprob(model, state.states[end])
+
+function setparams_and_logprob!!(state::SequentialStates, params, logprob)
+    return @set state.states[end] = setparams_and_logprob!!(state.states[end], params, logprob)
+end
 function setparams_and_logprob!!(model, state::SequentialStates, params, logprob)
     return @set state.states[end] = setparams_and_logprob!!(model, state.states[end], params, logprob)
 end
-
-# We want to save all the transitions/states, so we need to append the new one.
-# function AbstractMCMC.save!!(
-#     samples::Vector,
-#     sample::SequentialTransitions,
-#     iteration::Integer,
-#     model::AbstractMCMC.AbstractModel,
-#     sampler::AbstractMCMC.AbstractSampler,
-#     N::Integer=0;  # TODO: Dont' do this.
-#     kwargs...
-# )
-#     # NOTE: It's possible that `iteration + i > N`; can this cause issues? How do we deal with this?
-#     for (i, transition) in enumerate(sample.transitions)
-#         samples = AbstractMCMC.save!!(samples, transition, iteration + i, model, sampler, N; kwargs...)
-#     end
-#     return samples
-# end
-
-# # NOTE: When using a `SequentialTransition` we're not going to store that, but instead
-# # we're going to store whatever type of transitions it contains. Hence we should
-# # infer the type of the transitions from the type of the states.
-# function AbstractMCMC.samples(
-#     sample::SequentialTransitions,
-#     model::AbstractMCMC.AbstractModel,
-#     spl::AbstractMCMC.AbstractSampler,
-#     N::Integer;
-#     kwargs...
-# )
-#     return AbstractMCMC.samples(last(sample.transitions), model, spl, N; kwargs...)
-# end
-
-# function AbstractMCMC.samples(
-#     sample::SequentialTransitions,
-#     model::AbstractMCMC.AbstractModel,
-#     sampler::AbstractMCMC.AbstractSampler;
-#     kwargs...
-# )
-#     return AbstractMCMC.samples(last(sample.transitions), model, sampler; kwargs...)
-# end
 
 # Includes.
 include("samplers/composition.jl")
 include("samplers/repeated.jl")
 include("samplers/multi.jl")
+
+# Bundling.
+# TODO: Improve this, somehow.
+# TODO: Move this to an extension.
+function AbstractMCMC.bundle_samples(
+    ts::AbstractVector{<:TemperedTransition},
+    model::AbstractMCMC.AbstractModel,
+    sampler::TemperedSampler,
+    state::TemperedState,
+    ::Type{MCMCChains.Chains};
+    kwargs...
+)
+    return AbstractMCMC.bundle_samples(
+        map(Base.Fix2(getproperty, :transition), filter(!Base.Fix2(getproperty, :is_swap), ts)),  # Remove the swaps.
+        model,
+        sampler_for_chain(sampler, state),
+        state_for_chain(state),
+        MCMCChains.Chains;
+        kwargs...
+    )
+end
+
+function AbstractMCMC.bundle_samples(
+    ts::AbstractVector,
+    model::AbstractMCMC.AbstractModel,
+    sampler::CompositionSampler,
+    state::CompositionState,
+    ::Type{MCMCChains.Chains};
+    kwargs...
+)
+    return AbstractMCMC.bundle_samples(
+        ts, model, sampler.sampler_outer, state.state_outer, MCMCChains.Chains;
+        kwargs...
+    )
+end
+
+# Unflatten in the case of `SequentialTransitions`
+function AbstractMCMC.bundle_samples(
+    ts::AbstractVector{<:SequentialTransitions},
+    model::AbstractMCMC.AbstractModel,
+    sampler::CompositionSampler,
+    state::SequentialStates,
+    ::Type{MCMCChains.Chains};
+    kwargs...
+)
+    ts_actual = [t for tseq in ts for t in tseq.transitions]
+    return AbstractMCMC.bundle_samples(
+        ts_actual, model, sampler.sampler_outer, state.states[end], MCMCChains.Chains;
+        kwargs...
+    )
+end
+
+function AbstractMCMC.bundle_samples(
+    ts::AbstractVector,
+    model::AbstractMCMC.AbstractModel,
+    sampler::RepeatedSampler,
+    state,
+    ::Type{MCMCChains.Chains};
+    kwargs...
+)
+    return AbstractMCMC.bundle_samples(ts, model, sampler.sampler, state, MCMCChains.Chains; kwargs...)
+end
+
+# Unflatten in the case of `SequentialTransitions`.
+function AbstractMCMC.bundle_samples(
+    ts::AbstractVector{<:SequentialTransitions},
+    model::AbstractMCMC.AbstractModel,
+    sampler::RepeatedSampler,
+    state::SequentialStates,
+    ::Type{MCMCChains.Chains};
+    kwargs...
+)
+    ts_actual = [t for tseq in ts for t in tseq.transitions]
+    return AbstractMCMC.bundle_samples(
+        ts_actual, model, sampler.sampler, state.states[end], MCMCChains.Chains;
+        kwargs...
+    )
+end
+

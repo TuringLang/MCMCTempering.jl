@@ -73,6 +73,15 @@ struct MultipleTransitions{A}
     transitions::A
 end
 
+function getparams_and_logprob(transitions::MultipleTransitions)
+    params_and_logprobs = map(getparams_and_logprob, transitions.transitions)
+    return map(first, params_and_logprobs), map(last, params_and_logprobs)
+end
+function getparams_and_logprob(model::MultiModel, transitions::MultipleTransitions)
+    params_and_logprobs = map(getparams_and_logprob, model.models, transitions.transitions)
+    return map(first, params_and_logprobs), map(last, params_and_logprobs)
+end
+
 """
     MultipleStates
 
@@ -90,9 +99,18 @@ end
 
 # NOTE: This is different from most of the other implementations of `getparams_and_logprob`
 # as here we need to work with multiple models, transitions, and states.
+function getparams_and_logprob(state::MultipleStates)
+    params_and_logprobs = map(getparams_and_logprob, state.states)
+    return map(first, params_and_logprobs), map(last, params_and_logprobs)
+end
 function getparams_and_logprob(model::MultiModel, state::MultipleStates)
     params_and_logprobs = map(getparams_and_logprob, model.models, state.states)
     return map(first, params_and_logprobs), map(last, params_and_logprobs)
+end
+
+function setparams_and_logprob!!(state::MultipleStates, params, logprob)
+    @assert length(params) == length(logprob) == length(state.states) "The number of parameters and log probabilities must match the number of states."
+    return @set state.states = map(setparams_and_logprob!!, state.states, params, logprob)
 end
 function setparams_and_logprob!!(model::MultiModel, state::MultipleStates, params, logprob)
     @assert length(params) == length(logprob) == length(state.states) "The number of parameters and log probabilities must match the number of states."
