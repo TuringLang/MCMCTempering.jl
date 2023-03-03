@@ -55,12 +55,13 @@
         @test logp == logp_composed
 
         # Make sure that `AbstractMCMC.sample` is good.
-        chain_composed = sample(logdensity_model, spl_composed, 2; progress=false)
-        chain = sample(logdensity_model, spl, MCMCTempering.saveall(spl_composed) ? 4 : 2; progress=false)
+        chain_composed = sample(logdensity_model, spl_composed, 2; progress=false, chain_type=MCMCChains.Chains)
+        chain = sample(
+            logdensity_model, spl, MCMCTempering.saveall(spl_composed) ? 4 : 2;
+            progress=false, chain_type=MCMCChains.Chains
+        )
 
-        # Should be the same type.
-        @test typeof(chain_composed) === typeof(chain)
-        # Should be the same length.
+        # Should be the same length because the `SequentialTransitions` will be unflattened.
         @test length(chain_composed) == length(chain)
     end
 
@@ -107,6 +108,16 @@
         # Check that the parameters and log probability are the same.
         @test params == params_repeated
         @test logp == logp_repeated
+
+        # Make sure that `AbstractMCMC.sample` is good.
+        chain_repeated = sample(logdensity_model, spl_repeated, 2; progress=false, chain_type=MCMCChains.Chains)
+        chain = sample(
+            logdensity_model, spl, MCMCTempering.saveall(spl_repeated) ? 4 : 2;
+            progress=false, chain_type=MCMCChains.Chains
+        )
+
+        # Should be the same length because the `SequentialTransitions` will be unflattened.
+        @test length(chain_repeated) == length(chain)
     end
 
     @testset "MultiSampler" begin

@@ -34,12 +34,10 @@ function AbstractMCMC.step(
     sampler::RepeatedSampler;
     kwargs...
 )
-    transition, state = AbstractMCMC.step(rng, model, sampler.sampler; kwargs...)
-    if saveall(sampler)
-        return SequentialTransitions([transition]), SequentialStates([state])
-    else
-        return transition, state
-    end
+    state = last(AbstractMCMC.step(rng, model, sampler.sampler; kwargs...))
+    state_repeated = saveall(sampler) ? SequentialStates([state]) : state
+
+    return AbstractMCMC.step(rng, model, sampler, state_repeated; kwargs...)
 end
 
 function AbstractMCMC.step(

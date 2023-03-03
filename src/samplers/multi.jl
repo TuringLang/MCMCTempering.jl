@@ -99,15 +99,26 @@ function setparams_and_logprob!!(model::MultiModel, state::MultipleStates, param
     return @set state.states = map(setparams_and_logprob!!, model.models, state.states, params, logprob)
 end
 
+# TODO: Clean this up.
+initparams(model::MultiModel, init_params) = map(Base.Fix1(get_init_params, init_params), 1:length(model.models))
+initparams(model::MultiModel{<:Tuple}, init_params) =  ntuple(length(model.models)) do i
+    get_init_params(init_params, i)
+end
+
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model::MultiModel,
     sampler::MultiSampler;
+    init_params=nothing,
     kwargs...
 )
     @assert length(model.models) == length(sampler.samplers) "Number of models and samplers must be equal"
-    transition_and_states = asyncmap(model.models, sampler.samplers) do model, sampler
-        AbstractMCMC.step(rng, model, sampler; kwargs...)
+
+    # TODO: Handle `init_params` properly. Make sure that they respect the container-types used in
+    # `MultiModel` and `MultiSampler`.
+    init_params_multi = initparams(model, init_params)
+    transition_and_states = asyncmap(model.models, sampler.samplers, init_params_multi) do model, sampler, init_params
+        AbstractMCMC.step(rng, model, sampler; init_params, kwargs...)
     end
 
     return MultipleTransitions(map(first, transition_and_states)), MultipleStates(map(last, transition_and_states))
@@ -129,19 +140,20 @@ function AbstractMCMC.step(
     return MultipleTransitions(map(first, transition_and_states)), MultipleStates(map(last, transition_and_states))
 end
 
-function AbstractMCMC.step(
-    rng::Random.AbstractRNG,
-    model::MultiModel,
-    sampler::RepeatedSampler{<:MultiSampler},
-    states::MultipleStates;
-    kwargs...
-)
-    multisampler = sampler.sampler
-    @assert length(model.models) == length(multisampler.samplers) == length(states.states) "Number of models, samplers, and states must be equal."
-    transition_and_states = asyncmap(model.models, multisampler.samplers, states.states) do model, sampler, state
-        # Just re-wrap each of the samplers in a `RepeatedSampler` and call it's implementation.
-        AbstractMCMC.step(rng, model, RepeatedSampler(sampler, sampler.num_repeat), state; kwargs...)
-    end
+# function AbstractMCMC.step(
+#     rng::Random.AbstractRNG,
+#     model::MultiModel,
+#     sampler::RepeatedSampler{<:MultiSampler},
+#     states::SequentialStates{<:MultipleStates};
+#     kwargs...
+# )
+#     multisampler = sampler.sampler
+#     multistates = last(states.states)
+#     @assert length(model.models) == length(multisampler.samplers) == length(states.states) "Number of models, samplers, and states must be equal."
+#     transition_and_states = asyncmap(model.models, multisampler.samplers, multistates.states) do model, sampler, state
+#         # Just re-wrap each of the samplers in a `RepeatedSampler` and call it's implementation.
+#         AbstractMCMC.step(rng, model, RepeatedSampler(sampler, sampler.num_repeat), state; kwargs...)
+#     end
 
-    return MultipleTransitions(map(first, transition_and_states)), MultipleStates(map(last, transition_and_states))
-end
+#     return MultipleTransitions(map(first, transition_and_states)), MultipleStates(map(last, transition_and_states))
+# end

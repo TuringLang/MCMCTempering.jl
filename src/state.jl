@@ -115,6 +115,9 @@ transition_for_chain(state::TemperedState, I...) = transition_for_process(state,
 Return the transition corresponding to the process indexed by `I...`.
 """
 transition_for_process(state::TemperedState, I...) = state.transitions_and_states[I...][1]
+function transition_for_process(state::TemperedState{<:Tuple{<:MultipleTransitions,<:MultipleStates}}, I...)
+    return state.transitions_and_states[1].transitions[I...]
+end
 
 """
     state_for_chain(state[, I...])
@@ -131,6 +134,9 @@ state_for_chain(state::TemperedState, I...) = state_for_process(state, chain_to_
 Return the state corresponding to the process indexed by `I...`.
 """
 state_for_process(state::TemperedState, I...) = state.transitions_and_states[I...][2]
+function state_for_process(state::TemperedState{<:Tuple{<:MultipleTransitions,<:MultipleStates}}, I...)
+    return state.transitions_and_states[2].states[I...]
+end
 
 """
     beta_for_chain(state[, I...])
@@ -153,4 +159,14 @@ beta_for_process(state::TemperedState, I...) = beta_for_process(state.chain_to_b
 function beta_for_process(chain_to_beta::AbstractArray, proc2chain::AbstractArray, I...)
     return beta_for_chain(chain_to_beta, process_to_chain(proc2chain, I...))
 end
+
+
+struct TemperedTransition{S}
+    transition::S
+    is_swap::Bool
+end
+
+TemperedTransition(transition::S) where {S} = TemperedTransition(transition, false)
+
+getparams_and_logprob(model, transition::TemperedTransition) = getparams_and_logprob(model, transition.transition)
 

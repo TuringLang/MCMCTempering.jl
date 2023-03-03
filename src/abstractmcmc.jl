@@ -62,6 +62,16 @@ struct SequentialTransitions{A}
     transitions::A
 end
 
+# Since it's a _sequence_ of transitions, the parameters and logprobs are the ones of the
+# last transition/state.
+function getparams_and_logprob(model, transitions::SequentialTransitions)
+    return getparams_and_logprob(model, transitions.transitions[end])
+end
+
+function setparams_and_logprob!!(model, transitions::SequentialTransitions, params, logprob)
+    return @set transitions.transitions[end] = setparams_and_logprob!!(model, transitions.transitions[end], params, logprob)
+end
+
 """
     SequentialStates
 
@@ -79,43 +89,43 @@ function setparams_and_logprob!!(model, state::SequentialStates, params, logprob
 end
 
 # We want to save all the transitions/states, so we need to append the new one.
-function AbstractMCMC.save!!(
-    samples::Vector,
-    sample::SequentialTransitions,
-    iteration::Integer,
-    model::AbstractMCMC.AbstractModel,
-    sampler::AbstractMCMC.AbstractSampler,
-    N::Integer=0;  # TODO: Dont' do this.
-    kwargs...
-)
-    # NOTE: It's possible that `iteration + i > N`; can this cause issues? How do we deal with this?
-    for (i, transition) in enumerate(sample.transitions)
-        samples = AbstractMCMC.save!!(samples, transition, iteration + i, model, sampler, N; kwargs...)
-    end
-    return samples
-end
+# function AbstractMCMC.save!!(
+#     samples::Vector,
+#     sample::SequentialTransitions,
+#     iteration::Integer,
+#     model::AbstractMCMC.AbstractModel,
+#     sampler::AbstractMCMC.AbstractSampler,
+#     N::Integer=0;  # TODO: Dont' do this.
+#     kwargs...
+# )
+#     # NOTE: It's possible that `iteration + i > N`; can this cause issues? How do we deal with this?
+#     for (i, transition) in enumerate(sample.transitions)
+#         samples = AbstractMCMC.save!!(samples, transition, iteration + i, model, sampler, N; kwargs...)
+#     end
+#     return samples
+# end
 
-# NOTE: When using a `SequentialTransition` we're not going to store that, but instead
-# we're going to store whatever type of transitions it contains. Hence we should
-# infer the type of the transitions from the type of the states.
-function AbstractMCMC.samples(
-    sample::SequentialTransitions,
-    model::AbstractMCMC.AbstractModel,
-    spl::AbstractMCMC.AbstractSampler,
-    N::Integer;
-    kwargs...
-)
-    return AbstractMCMC.samples(last(sample.transitions), model, spl, N; kwargs...)
-end
+# # NOTE: When using a `SequentialTransition` we're not going to store that, but instead
+# # we're going to store whatever type of transitions it contains. Hence we should
+# # infer the type of the transitions from the type of the states.
+# function AbstractMCMC.samples(
+#     sample::SequentialTransitions,
+#     model::AbstractMCMC.AbstractModel,
+#     spl::AbstractMCMC.AbstractSampler,
+#     N::Integer;
+#     kwargs...
+# )
+#     return AbstractMCMC.samples(last(sample.transitions), model, spl, N; kwargs...)
+# end
 
-function AbstractMCMC.samples(
-    sample::SequentialTransitions,
-    model::AbstractMCMC.AbstractModel,
-    sampler::AbstractMCMC.AbstractSampler;
-    kwargs...
-)
-    return AbstractMCMC.samples(last(sample.transitions), model, sampler; kwargs...)
-end
+# function AbstractMCMC.samples(
+#     sample::SequentialTransitions,
+#     model::AbstractMCMC.AbstractModel,
+#     sampler::AbstractMCMC.AbstractSampler;
+#     kwargs...
+# )
+#     return AbstractMCMC.samples(last(sample.transitions), model, sampler; kwargs...)
+# end
 
 # Includes.
 include("samplers/composition.jl")

@@ -9,11 +9,14 @@ using ProgressLogging: ProgressLogging
 using ConcreteStructs: @concrete
 using Setfield: @set, @set!
 
+using MCMCChains: MCMCChains
+
 using InverseFunctions
 
 using DocStringExtensions
 
 include("logdensityproblems.jl")
+include("abstractmcmc.jl")
 include("adaptation.jl")
 include("swapping.jl")
 include("state.jl")
@@ -22,7 +25,6 @@ include("sampling.jl")
 include("ladders.jl")
 include("stepping.jl")
 include("model.jl")
-include("abstractmcmc.jl")
 
 export tempered,
     tempered_sample,
@@ -40,16 +42,51 @@ implements_logdensity(x) = LogDensityProblems.capabilities(x) !== nothing
 maybe_wrap_model(model) = implements_logdensity(model) ? AbstractMCMC.LogDensityModel(model) : model
 maybe_wrap_model(model::AbstractMCMC.LogDensityModel) = model
 
+# TODO: Move this to a compat file.
 function AbstractMCMC.bundle_samples(
-    ts::AbstractVector,
+    ts::AbstractVector{<:TemperedTransition},
     model::AbstractMCMC.AbstractModel,
     sampler::TemperedSampler,
     state::TemperedState,
-    chain_type::Type;
+    ::Type{MCMCChains.Chains};
     kwargs...
 )
-    AbstractMCMC.bundle_samples(
-        ts, maybe_wrap_model(model), sampler_for_chain(sampler, state, 1), state_for_chain(state, 1), chain_type;
+    return AbstractMCMC.bundle_samples(
+        map(Base.Fix2(getproperty, :transition), filter(!Base.Fix2(getproperty, :is_swap), ts)),  # Remove the swaps.
+        model,
+        sampler_for_chain(sampler, state),
+        state_for_chain(state),
+        MCMCChains.Chains;
+        kwargs...
+    )
+end
+
+function AbstractMCMC.bundle_samples(
+    ts::AbstractVector{<:SequentialTransitions},
+    model::AbstractMCMC.AbstractModel,
+    sampler::CompositionSampler,
+    state::SequentialStates,
+    ::Type{MCMCChains.Chains};
+    kwargs...
+)
+    ts_actual = [t for tseq in ts for t in tseq.transitions]
+    return AbstractMCMC.bundle_samples(
+        ts_actual, model, sampler.sampler_outer, state.states[end], MCMCChains.Chains;
+        kwargs...
+    )
+end
+
+function AbstractMCMC.bundle_samples(
+    ts::AbstractVector{<:SequentialTransitions},
+    model::AbstractMCMC.AbstractModel,
+    sampler::RepeatedSampler,
+    state::SequentialStates,
+    ::Type{MCMCChains.Chains};
+    kwargs...
+)
+    ts_actual = [t for tseq in ts for t in tseq.transitions]
+    return AbstractMCMC.bundle_samples(
+        ts_actual, model, sampler.sampler, state.states[end], MCMCChains.Chains;
         kwargs...
     )
 end

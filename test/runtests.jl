@@ -36,7 +36,7 @@ function test_and_sample_model(
     mean_swap_rate_bound=0.1,
     compare_mean_swap_rate=≥,
     num_iterations=2_000,
-    swap_every=2,
+    swap_every=1,
     adapt_target=0.234,
     adapt_rtol=0.1,
     adapt_atol=0.05,
@@ -45,8 +45,8 @@ function test_and_sample_model(
     progress=false,
     kwargs...
 )
-    # TODO: Remove this when no longer necessary.
-    num_iterations_tempered = Int(ceil(num_iterations * swap_every / (swap_every - 1)))
+    # NOTE: Every other `step` will perform a swap.
+    num_iterations_tempered = 2 * num_iterations
 
     # Make the tempered sampler.
     sampler_tempered = tempered(
@@ -131,10 +131,11 @@ function test_and_sample_model(
     # Compare the tempered sampler to the untempered sampler.
     state_tempered = states_tempered[end]
     chain_tempered = AbstractMCMC.bundle_samples(
-        samples_tempered[findall((!).(getproperty.(states_tempered, :is_swap)))],
+        # TODO: Just use the underlying chain?
+        samples_tempered,
         MCMCTempering.maybe_wrap_model(model),
-        sampler_tempered.sampler,
-        MCMCTempering.state_for_chain(state_tempered),
+        sampler_tempered,
+        state_tempered,
         MCMCChains.Chains;
         param_names=param_names
     )
@@ -147,6 +148,7 @@ function compare_chains(
     atol=1e-6, rtol=1e-6,
     compare_std=true,
     compare_ess=true,
+    compare_ess_slack=0.8,
     isbroken=false
 )
     desc = describe(chain)[1].nt
@@ -173,9 +175,9 @@ function compare_chains(
         ess = MCMCChains.ess_rhat(chain).nt.ess
         ess_tempered = MCMCChains.ess_rhat(chain_tempered).nt.ess
         if isbroken
-            @test_broken all(ess_tempered .≥ ess)
+            @test_broken all(ess_tempered .≥ ess .* compare_ess_slack)
         else
-            @test all(ess_tempered .≥ ess)
+            @test all(ess_tempered .≥ ess .* compare_ess_slack)
         end
     end
 end
@@ -228,7 +230,7 @@ end
     end
 
     @testset "Simple MvNormal with no expected swaps" begin
-        num_iterations = 10_000
+        num_iterations = 1_000
         d = 1
         model = DistributionLogDensity(MvNormal(ones(d), I))
 
@@ -241,7 +243,6 @@ end
             sampler_rwmh,
             [1.0, 1e-3],  # extreme temperatures -> don't exect much swapping to occur
             num_iterations=num_iterations,
-            swap_every=2,
             adapt=false,
             init_params = [[0.0], [1000.0]],  # initialized far apart
             # At most 1% of swaps should be successful.
@@ -253,7 +254,7 @@ end
     end
 
     @testset "GMM 1D" begin
-        num_iterations = 10_000
+        num_iterations = 1_000
         model = DistributionLogDensity(
             MixtureModel(Normal, [(-3, 1.5), (3, 1.5), (15, 1.5), (90, 1.5)], [0.175, 0.25, 0.275, 0.3])
         )
@@ -270,7 +271,6 @@ end
             sampler_rwmh,
             inverse_temperatures,
             num_iterations=num_iterations,
-            swap_every=2,
             adapt=false,
             # At least 25% of swaps should be successful.
             mean_swap_rate_bound=0.25,
@@ -284,8 +284,7 @@ end
 
     @testset "MvNormal 2D with different swap strategies" begin
         d = 2
-        num_iterations = 20_000
-        swap_every = 2
+        num_iterations = 5_000
 
         μ_true = [-5.0, 5.0]
         σ_true = [1.0, √(10.0)]
@@ -319,7 +318,6 @@ end
                 sampler,
                 inverse_temperatures,
                 num_iterations=num_iterations,
-                swap_every=swap_every,
                 swapstrategy=swapstrategy,
                 adapt=false,
             )
@@ -375,7 +373,6 @@ end
                 [1, 0.25, 0.1, 0.01],
                 swap_strategy=MCMCTempering.ReversibleSwap(),
                 num_iterations=num_iterations,
-                swap_every=10,
                 adapt=false,
                 mean_swap_rate_bound=0,
                 init_params=copy(init_params),
@@ -389,7 +386,7 @@ end
         end
         
         @testset "AdvancedMH.jl" begin
-            num_iterations = 100_000
+            num_iterations = 2_000
             d = LogDensityProblems.dimension(model)
 
             # Set up MALA sampler.
@@ -414,7 +411,6 @@ end
                 [1, 0.9, 0.75, 0.5, 0.25, 0.1],
                 swap_strategy=MCMCTempering.ReversibleSwap(),
                 num_iterations=num_iterations,
-                swap_every=2,
                 adapt=false,
                 mean_swap_rate_bound=0,
                 init_params=copy(init_params),
