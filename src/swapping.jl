@@ -123,6 +123,19 @@ function compute_tempered_logdensities(
     return compute_tempered_logdensities(model, sampler, transition, transition_other, β)
 end
 
+function compute_tempered_logdensities(
+    model::AbstractMCMC.AbstractModel,
+    model_other::AbstractMCMC.AbstractModel,
+    state,
+    state_other,
+)
+    # TODO: Make use of `getparams_and_logprob` instead?
+    return (
+        logdensity(model, getparams(model, state)),
+        logdensity(model, getparams(model_other, state_other))
+    )
+end
+
 """
     swap_acceptance_pt(logπi, logπj)
 
@@ -164,6 +177,41 @@ function swap_attempt(rng, model, sampler, state, i, j, adapt)
     logα = swap_acceptance_pt(logπiθi, logπiθj, logπjθi, logπjθj)
     should_swap = -Random.randexp(rng) ≤ logα
     if should_swap
+        swap_betas!(state.chain_to_process, state.process_to_chain, i, j)
+    end
+
+    # Keep track of the (log) acceptance ratios.
+    state.swap_acceptance_ratios[i] = logα
+
+    # Adaptation steps affects `ρs` and `inverse_temperatures`, as the `ρs` is
+    # adapted before a new `inverse_temperatures` is generated and returned.
+    if adapt
+        ρs = adapt!!(
+            state.adaptation_states, state.chain_to_beta, i, min(one(logα), exp(logα))
+        )
+        @set! state.adaptation_states = ρs
+        @set! state.chain_to_beta = update_inverse_temperatures(ρs, state.chain_to_beta)
+    end
+    return state
+end
+
+function swap_attempt(rng::Random.AbstractRNG, model::MultiModel, state, i, j, adapt)
+    # Extract the relevant transitions.
+    state_i = state_for_chain(state, i)
+    state_j = state_for_chain(state, j)
+    # Evaluate logdensity for both parameters for each tempered density.
+    # NOTE: Assumes ordering of models is according to chains.
+    model_i = model.models[chain_to_process(state, i)]
+    model_j = model.models[chain_to_process(state, j)]
+    logπiθi, logπiθj = compute_tempered_logdensities(model_i, model_j, state_i, state_j)
+    logπjθj, logπjθi = compute_tempered_logdensities(model_i, model_j, state_j, state_i)
+
+    # If the proposed temperature swap is accepted according `logα`,
+    # swap the temperatures for future steps.
+    logα = swap_acceptance_pt(logπiθi, logπiθj, logπjθi, logπjθj)
+    should_swap = -Random.randexp(rng) ≤ logα
+    if should_swap
+        # TODO: Rename `swap_betas!` since no betas are involved anymore?
         swap_betas!(state.chain_to_process, state.process_to_chain, i, j)
     end
 

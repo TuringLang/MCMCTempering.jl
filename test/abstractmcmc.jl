@@ -160,4 +160,12 @@
             @test map(last, params_and_logp) == logp_multi
         end
     end
+
+    @testset "SwapSampler" begin
+        swapspl = MCMCTempering.SwapSampler()
+        spl_full = MCMCTempering.TemperedComposition(swapspl, spl, [1.0, 0.5])
+
+        transition, state = AbstractMCMC.step(rng, logdensity_model, spl_full)
+        
+    end
 end
