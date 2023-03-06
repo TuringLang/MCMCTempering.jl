@@ -47,18 +47,21 @@ maybe_wrap_model(model::AbstractMCMC.LogDensityModel) = model
 # TODO: Improve this, somehow.
 # TODO: Move this to an extension.
 function AbstractMCMC.bundle_samples(
-    ts::AbstractVector{<:TemperedTransition},
+    ts::AbstractVector{<:TemperedTransition{<:SwapTransition,<:MultipleTransitions}},
     model::AbstractMCMC.AbstractModel,
     sampler::TemperedSampler,
     state::TemperedState,
     ::Type{MCMCChains.Chains};
     kwargs...
 )
+    # Extract the transitions ordered according to the chains.
+    # TODO: Improve this.
+    ts_actual = [t.transition.transitions[first(t.swaptransition.chain_to_process)] for t in ts]
     return AbstractMCMC.bundle_samples(
-        map(Base.Fix2(getproperty, :transition), filter(!Base.Fix2(getproperty, :is_swap), ts)),  # Remove the swaps.
+        ts_actual,
         model,
-        sampler_for_chain(sampler, state),
-        state_for_chain(state),
+        sampler_for_chain(sampler, state, 1),
+        state_for_chain(state.swapstate),
         MCMCChains.Chains;
         kwargs...
     )
