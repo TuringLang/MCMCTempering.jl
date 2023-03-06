@@ -105,21 +105,19 @@ function SwapState(state::MultipleStates)
 end
 
 # Defer these to `MultipleStates`.
+# TODO: Should this depend on `orderinge`?
 function getparams_and_logprob(state::SwapState)
     # NOTE: Returns parameters, etc. in the chain-ordering, not the process-ordering.
-    return getparams_and_logprob(MultipleStates(map(Base.Fix1(getindex, state.states), state.chain_to_process)))
+    return getparams_and_logprob(MultipleStates(state.states))
 end
 function getparams_and_logprob(model, state::SwapState)
     # NOTE: Returns parameters, etc. in the chain-ordering, not the process-ordering.
-    return getparams_and_logprob(model, MultipleStates(map(Base.Fix1(getindex, state.states), state.chain_to_process)))
+    return getparams_and_logprob(model, MultipleStates(state.states))
 end
 
 function setparams_and_logprob!!(model, state::SwapState, params, logprobs)
-    # Order according to processes.
-    process_to_params = map(Base.Fix1(getindex, params), state.process_to_chain)
-    process_to_logprobs = map(Base.Fix1(getindex, logprobs), state.process_to_chain)
     # Use the `MultipleStates`'s implementation to update the underlying states.
-    multistate = setparams_and_logprob!!(model, MultipleStates(state.states), process_to_params, process_to_logprobs)
+    multistate = setparams_and_logprob!!(model, MultipleStates(state.states), params, logprobs)
     # Update the states!
     return @set state.states = multistate.states
 end

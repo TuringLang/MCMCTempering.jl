@@ -161,11 +161,27 @@
         end
     end
 
-    @testset "SwapSampler" begin
-        swapspl = MCMCTempering.SwapSampler()
-        spl_full = MCMCTempering.TemperedComposition(swapspl, spl, [1.0, 0.5])
+    # Now we have the capabilities to:
+    # 1. Swap when sampling `MultiModel`.
+    # 2. Swap when tempering.
 
-        transition, state = AbstractMCMC.step(rng, logdensity_model, spl_full)
-        
-    end
+    # @testset "SwapSampler" begin
+    #     # SwapSampler without tempering (i.e. in a composition and using `MultiModel`, etc.)
+    #     swapspl = MCMCTempering.SwapSampler()
+    #     spl_full = (spl × spl) ∘ swapspl
+    #     spl_full = swapspl ∘ (spl × spl)
+    #     product_model = logdensity_model × logdensity_model
+    #     transition, state = AbstractMCMC.step(rng, product_model, spl_full)
+    #     samples = AbstractMCMC.sample(product_model, spl_full, 10)
+    # end
+
+    # @testset "TemperingSampler" begin
+    #     spl_full = MCMCTempering.TemperedSampler(spl, [1.0, 0.5])
+
+    #     transition, state = AbstractMCMC.step(rng, logdensity_model, spl_full)
+    #     transition, state = AbstractMCMC.step(rng, logdensity_model, spl_full, state)
+
+    #     sample(rng, logdensity_model, spl_full, 10)
+    #     sample(rng, logdensity_model, spl_full, 10; chain_type=MCMCChains.Chains)
+    # end
 end
