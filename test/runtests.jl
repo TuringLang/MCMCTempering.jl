@@ -78,7 +78,7 @@ function test_and_sample_model(
     end
 
     # Extract the states that were swapped.
-    states_swapped = filter(Base.Fix2(getproperty, :is_swap), states_tempered)
+    states_swapped = map(Base.Fix2(getproperty, :swapstate), states_tempered)
     # Swap acceptance ratios should be compared against the target acceptance in case of adaptation.
     swap_acceptance_ratios = mapreduce(
         collect ∘ values ∘ Base.Fix2(getproperty, :swap_acceptance_ratios),
@@ -97,13 +97,13 @@ function test_and_sample_model(
     end
 
     # Extract the history of chain indices.
-    process_to_chain_history_list = map(states_tempered) do state
+    process_to_chain_history_list = map(states_swapped) do state
         state.process_to_chain
     end
     process_to_chain_history = permutedims(reduce(hcat, process_to_chain_history_list), (2, 1))
 
     # Check that the swapping has been done correctly.
-    process_to_chain_uniqueness = map(states_tempered) do state
+    process_to_chain_uniqueness = map(states_swapped) do state
         length(unique(state.process_to_chain)) == length(state.process_to_chain)
     end
     @test all(process_to_chain_uniqueness)
@@ -111,7 +111,7 @@ function test_and_sample_model(
     # For the currently implemented strategies, the index process should not move by more than 1.
     @test all(abs.(diff(process_to_chain_history[:, 1])) .≤ 1)
 
-    chain_to_process_uniqueness = map(states_tempered) do state
+    chain_to_process_uniqueness = map(states_swapped) do state
         length(unique(state.chain_to_process)) == length(state.chain_to_process)
     end
     @test all(chain_to_process_uniqueness)
@@ -245,7 +245,7 @@ end
             num_iterations=num_iterations,
             adapt=false,
             init_params = [[0.0], [1000.0]],  # initialized far apart
-            # At most 1% of swaps should be successful.
+            # At MOST 1% of swaps should be successful.
             mean_swap_rate_bound=0.01,
             compare_mean_swap_rate=≤,
         )
