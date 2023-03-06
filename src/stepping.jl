@@ -1,63 +1,33 @@
-"""
-    should_swap(sampler, state)
-
-Return `true` if a swap should happen at this iteration, and `false` otherwise.
-"""
-function should_swap(sampler::TemperedSampler, state::TemperedState)
-    return state.total_steps % sampler.swap_every == 1
-end
-
 get_init_params(x, _) = x
 get_init_params(init_params::Nothing, _) = nothing
 get_init_params(init_params::AbstractVector{<:Real}, _) = copy(init_params)
 get_init_params(init_params::AbstractVector{<:AbstractVector{<:Real}}, i) = init_params[i]
 
+@concrete struct TemperedTransition
+    swaptransition
+    transition
+end
+
+function transition_for_chain(transition::TemperedTransition, I...)
+    chain_idx = transition.swaptransition.chain_to_process[I...]
+    return transition.transition.transitions[chain_idx]
+end
+
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
-    model,
+    model::AbstractMCMC.AbstractModel,
     sampler::TemperedSampler;
     N_burnin::Integer=0,
     burnin_progress::Bool=AbstractMCMC.PROGRESS[],
-    init_params=nothing,
     kwargs...
 )
-
-    # `TemperedState` has the transitions and states in the order of
-    # the processes, and performs swaps by moving the (inverse) temperatures
-    # `β` between the processes, rather than moving states between processes
-    # and keeping the `β` local to each process.
-    # 
-    # Therefore we iterate over the processes and then extract the corresponding
-    # `β`, `sampler` and `state`, and take a initialize.
-
     # Create a `MultiSampler` and `MultiModel`.
-    multimodel = MultiModel(
-        make_tempered_model(sampler, model, sampler.inverse_temperatures[i])
+    multimodel = MultiModel([
+        make_tempered_model(sampler, model, sampler.chain_to_beta[i])
         for i in 1:numtemps(sampler)
-    )
-    multisampler = MultiSampler(getsampler(sampler, i) for i in 1:numtemps(sampler))
-    multitransition, multistate = AbstractMCMC.step(
-        rng, multimodel, multisampler;
-        init_params=init_params,
-        kwargs...
-    )
-
-    # Make sure to collect, because we'll be using `setindex!(!)` later.
-    process_to_chain = collect(1:length(sampler.inverse_temperatures))
-    # Need to `copy` because this might be mutated.
-    chain_to_process = copy(process_to_chain)
-    state = TemperedState(
-        multitransition.transitions,
-        multistate.states,
-        sampler.inverse_temperatures,
-        process_to_chain,
-        chain_to_process,
-        1,
-        0,
-        sampler.adaptation_states,
-        false,
-        Dict{Int,Float64}()
-    )
+    ])
+    multisampler = MultiSampler([getsampler(sampler, i) for i in 1:numtemps(sampler)])
+    multistate = last(AbstractMCMC.step(rng, multimodel, multisampler; kwargs...))
 
     # TODO: Move this to AbstractMCMC. Or better, add to AbstractMCMC a way to
     # specify a callback to be used for the `discard_initial`.
@@ -75,66 +45,68 @@ function AbstractMCMC.step(
                     ProgressLogging.@logprogress i / N_burnin
                     next_update = i + threshold
                 end
-                state = no_swap_step(rng, model, sampler, state; kwargs...)
-                @set! state.burnin_steps += 1
+                multistate = last(AbstractMCMC.step(rng, multimodel, multisampler, multistate; kwargs...))
             end
         end
     end
 
-    return TemperedTransition(transition_for_chain(state)), state
+    # Make sure to collect, because we'll be using `setindex!(!)` later.
+    process_to_chain = collect(1:length(sampler.chain_to_beta))
+    # Need to `copy` because this might be mutated.
+    chain_to_process = copy(process_to_chain)
+    swapstate = SwapState(
+        multistate.states,
+        chain_to_process,
+        process_to_chain,
+        1,
+        Dict{Int,Float64}(),
+    )
+
+    return AbstractMCMC.step(rng, model, sampler, TemperedState(swapstate, multistate, sampler.chain_to_beta))
 end
 
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
-    model,
+    model::AbstractMCMC.AbstractModel,
     sampler::TemperedSampler,
     state::TemperedState;
     kwargs...
 )
-    # Reset state
-    @set! state.swap_acceptance_ratios = empty(state.swap_acceptance_ratios)
+    # Get the samplers.
+    swapspl = swapsampler(sampler)
+    # Extract the previous states.
+    swapstate_prev, multistate_prev = state.swapstate, state.state
 
-    isswap = should_swap(sampler, state)
-    if isswap
-        state = swap_step(rng, model, sampler, state)
-        @set! state.is_swap = true
-    else
-        state = no_swap_step(rng, model, sampler, state; kwargs...)
-        @set! state.is_swap = false
-    end
+    # BUT to call `make_tempered_model`, the temperatures need to be available. 
+    multimodel_swap = MultiModel([model_for_process(sampler, model, state, i) for i in 1:numtemps(sampler)])
 
-    @set! state.total_steps += 1
+    # Update the `swapstate`.
+    swapstate = state_from(model, swapstate_prev, multistate_prev)
+    # Take a step with the swap sampler.
+    swaptransition, swapstate = AbstractMCMC.step(rng, multimodel_swap, swapspl, swapstate; kwargs...)
 
-    # We want to return the transition for the _first_ chain, i.e. the chain usually corresponding to `β=1.0`.
-    return TemperedTransition(transition_for_chain(state), isswap), state
-end
-
-function no_swap_step(
-    rng::Random.AbstractRNG,
-    model,
-    sampler::TemperedSampler,
-    state::TemperedState;
-    kwargs...
-)
+    # Update `swapstate` in `state`.
+    @set! state.swapstate = swapstate
+    
     # Create the multi-versions with the ordering corresponding to the processes.
-    multimodel = MultiModel(model_for_process(sampler, model, state, i) for i in 1:numtemps(sampler))
-    multisampler = MultiSampler(sampler_for_process(sampler, state, i) for i in 1:numtemps(sampler))
-    multistate = MultipleStates(state_for_process(state, i) for i in 1:numtemps(sampler))
+    # NOTE: If the user-provided `model` is a `MultiModel`, then `model_for_process` implementation
+    # for `TemperedSampler` will assume the models are ordered according to chains rather than processes.
+    multimodel = MultiModel([model_for_process(sampler, model, state, i) for i in 1:numtemps(sampler)])
+    # NOTE: If `sampler.sampler` is a `MultiSampler`, then we should just select the corresponding index.
+    # Otherwise, we just replicate the `sampler.sampler`.
+    multispl = MultiSampler([sampler_for_process(sampler, state, i) for i in 1:numtemps(sampler)])
+    # A `SwapState` has to contain the states for the other sampler, otherwise the `SwapSampler` won't be
+    # able to compute the logdensities, etc.
+    multistate = MultipleStates([state_for_process(state, i) for i in 1:numtemps(sampler)])
 
-    # And then step.
-    multitransition, multistate_next = AbstractMCMC.step(
-        rng,
-        multimodel,
-        multisampler,
-        multistate;
-        kwargs...
+    # Take a step with the multi sampler.
+    multitransition, multistate = AbstractMCMC.step(rng, multimodel, multispl, multistate; kwargs...)
+
+    # TODO: Should we still call `composition_transition`?
+    return (
+        TemperedTransition(swaptransition, multitransition),
+        TemperedState(swapstate, multistate, state.chain_to_beta)
     )
-
-    # Update the `TemperedState`.
-    @set! state.transitions = multitransition.transitions
-    @set! state.states = multistate_next.states
-
-    return state
 end
 
 """

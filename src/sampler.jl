@@ -7,24 +7,25 @@ A `TemperedSampler` struct wraps a sampler upon which to apply the Parallel Temp
 
 $(FIELDS)
 """
-@concrete struct TemperedSampler <: AbstractMCMC.AbstractSampler
+Base.@kwdef struct TemperedSampler{SplT,A,SwapT,Adapt} <: AbstractMCMC.AbstractSampler
     "sampler(s) used to target the tempered distributions"
-    sampler
+    sampler::SplT
     "collection of inverse temperatures β; β[i] correponds i-th tempered model"
-    inverse_temperatures
-    "number of steps of `sampler` to take before proposing swaps"
-    swap_every
-    "the swap strategy that will be used when proposing swaps"
-    swap_strategy
-    # TODO: This should be replaced with `P` just being some `NoAdapt` type.
+    chain_to_beta::A
+    "strategy to use for swapping"
+    swapstrategy::SwapT=ReversibleSwap()
+    # TODO: Remove `adapt` and just consider `adaptation_states=nothing` as no adaptation.
     "boolean flag specifying whether or not to adapt"
-    adapt
+    adapt=false
     "adaptation parameters"
-    adaptation_states
+    adaptation_states::Adapt=nothing
 end
 
-swapstrategy(sampler::TemperedSampler) = sampler.swap_strategy
+TemperedSampler(sampler, chain_to_beta) = TemperedSampler(; sampler, chain_to_beta)
 
+swapsampler(sampler::TemperedSampler) = SwapSampler(sampler.swapstrategy, ProcessOrdering())
+
+# TODO: Do we need this now?
 getsampler(samplers, I...) = getindex(samplers, I...)
 getsampler(sampler::AbstractMCMC.AbstractSampler, I...) = sampler
 getsampler(sampler::TemperedSampler, I...) = getsampler(sampler.sampler, I...)
@@ -34,18 +35,7 @@ getsampler(sampler::TemperedSampler, I...) = getsampler(sampler.sampler, I...)
 
 Return number of inverse temperatures used by `sampler`.
 """
-numtemps(sampler::TemperedSampler) = length(sampler.inverse_temperatures)
-
-"""
-    sampler_for_chain(sampler::TemperedSampler, state::TemperedState[, I...])
-
-Return the sampler corresponding to the chain indexed by `I...`.
-If `I...` is not specified, the sampler corresponding to `β=1.0` will be returned.
-"""
-sampler_for_chain(sampler::TemperedSampler, state::TemperedState) = sampler_for_chain(sampler, state, 1)
-function sampler_for_chain(sampler::TemperedSampler, state::TemperedState, I...)
-    return getsampler(sampler.sampler, chain_to_process(state, I...))
-end
+numtemps(sampler::TemperedSampler) = length(sampler.chain_to_beta)
 
 """
     sampler_for_process(sampler::TemperedSampler, state::TemperedState, I...)
@@ -53,8 +43,13 @@ end
 Return the sampler corresponding to the process indexed by `I...`.
 """
 function sampler_for_process(sampler::TemperedSampler, state::TemperedState, I...)
-    return getsampler(sampler.sampler, I...)
+    return _sampler_for_process_temper(sampler.sampler, state.swapstate, I...)
 end
+
+# If `sampler` is a `MultiSampler`, we assume it's ordered according to chains.
+_sampler_for_process_temper(sampler::MultiSampler, state, I...) = sampler.samplers[process_to_chain(state, I...)]
+# Otherwise, we just use the same sampler for everything.
+_sampler_for_process_temper(sampler, state, I...) = sampler
 
 """
     tempered(sampler, inverse_temperatures; kwargs...)
@@ -118,5 +113,5 @@ function tempered(
     # TODO: Generalize. Allow passing in a `MultiSampler`, etc.
     sampler_inner = sampler^swap_every
     # FIXME: Remove the hard-coded `2` for swap-every, and change `should_swap` acoordingly.
-    return TemperedSampler(sampler_inner, inverse_temperatures, 2, swap_strategy, adapt, adaptation_states)
+    return TemperedSampler(sampler_inner, inverse_temperatures, swap_strategy, adapt, adaptation_states)
 end
