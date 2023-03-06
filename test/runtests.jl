@@ -46,7 +46,7 @@ function test_and_sample_model(
     kwargs...
 )
     # NOTE: Every other `step` will perform a swap.
-    num_iterations_tempered = 2 * num_iterations
+    num_iterations_tempered = num_iterations
 
     # Make the tempered sampler.
     sampler_tempered = tempered(
