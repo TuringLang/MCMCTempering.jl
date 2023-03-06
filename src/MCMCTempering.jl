@@ -26,6 +26,7 @@ include("ladders.jl")
 include("stepping.jl")
 include("model.jl")
 include("swapsampler.jl")
+include("tempered_composition.jl")
 
 export tempered,
     tempered_sample,
