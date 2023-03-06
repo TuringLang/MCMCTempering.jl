@@ -19,14 +19,13 @@ include("logdensityproblems.jl")
 include("abstractmcmc.jl")
 include("adaptation.jl")
 include("swapping.jl")
+include("swapsampler.jl")
 include("state.jl")
 include("sampler.jl")
 include("sampling.jl")
 include("ladders.jl")
 include("stepping.jl")
 include("model.jl")
-include("swapsampler.jl")
-include("tempered_composition.jl")
 
 export tempered,
     tempered_sample,
