@@ -1,4 +1,21 @@
 """
+    TemperedState
+
+A state for a tempered sampler.
+
+# Fields
+$(FIELDS)
+"""
+@concrete struct TemperedState
+    "state for swap-sampler"
+    swapstate
+    "state for the main sampler"
+    state
+    "inverse temperature for each of the chains"
+    chain_to_beta
+end
+
+"""
     TemperedSampler <: AbstractMCMC.AbstractSampler
 
 A `TemperedSampler` struct wraps a sampler upon which to apply the Parallel Tempering algorithm.
@@ -50,6 +67,36 @@ end
 _sampler_for_process_temper(sampler::MultiSampler, state, I...) = sampler.samplers[process_to_chain(state, I...)]
 # Otherwise, we just use the same sampler for everything.
 _sampler_for_process_temper(sampler, state, I...) = sampler
+
+# Defer extracting the corresponding state to the `swapstate`.
+state_for_process(state::TemperedState, I...) = state_for_process(state.swapstate, I...)
+
+# Here we make the model(s) using the temperatures.
+function model_for_process(sampler::TemperedSampler, model, state::TemperedState, I...)
+    return make_tempered_model(sampler, model, beta_for_process(state, I...))
+end
+
+"""
+    beta_for_chain(state[, I...])
+
+Return the β corresponding to the chain indexed by `I...`.
+If `I...` is not specified, the β corresponding to `β=1.0` will be returned.
+"""
+beta_for_chain(state::TemperedState) = beta_for_chain(state, 1)
+beta_for_chain(state::TemperedState, I...) = beta_for_chain(state.chain_to_beta, I...)
+# NOTE: Array impl. is useful for testing.
+beta_for_chain(chain_to_beta::AbstractArray, I...) = chain_to_beta[I...] 
+
+"""
+    beta_for_process(state, I...)
+
+Return the β corresponding to the process indexed by `I...`.
+"""
+beta_for_process(state::TemperedState, I...) = beta_for_process(state.chain_to_beta, state.swapstate.process_to_chain, I...)
+# NOTE: Array impl. is useful for testing.
+function beta_for_process(chain_to_beta::AbstractArray, proc2chain::AbstractArray, I...)
+    return beta_for_chain(chain_to_beta, process_to_chain(proc2chain, I...))
+end
 
 """
     tempered(sampler, inverse_temperatures; kwargs...)
