@@ -38,7 +38,7 @@ Base.@kwdef struct TemperedSampler{SplT,A,SwapT,Adapt} <: AbstractMCMC.AbstractS
     adaptation_states::Adapt=nothing
 end
 
-TemperedSampler(sampler, chain_to_beta) = TemperedSampler(; sampler, chain_to_beta)
+TemperedSampler(sampler, chain_to_beta; kwargs...) = TemperedSampler(; sampler, chain_to_beta, kwargs...)
 
 swapsampler(sampler::TemperedSampler) = SwapSampler(sampler.swapstrategy, ProcessOrdering())
 
@@ -47,12 +47,17 @@ getsampler(samplers, I...) = getindex(samplers, I...)
 getsampler(sampler::AbstractMCMC.AbstractSampler, I...) = sampler
 getsampler(sampler::TemperedSampler, I...) = getsampler(sampler.sampler, I...)
 
-"""
-    numsteps(sampler::TemperedSampler)
+chain_to_process(state::TemperedState, I...) = chain_to_process(state.swapstate, I...)
+process_to_chain(state::TemperedState, I...) = process_to_chain(state.swapstate, I...)
 
-Return number of inverse temperatures used by `sampler`.
 """
-numtemps(sampler::TemperedSampler) = length(sampler.chain_to_beta)
+    sampler_for_chain(sampler::TemperedSampler, state::TemperedState, I...)
+
+Return the sampler corresponding to the chain indexed by `I...`.
+"""
+function sampler_for_chain(sampler::TemperedSampler, state::TemperedState, I...)
+    return sampler_for_process(sampler, state, chain_to_process(state, I...))
+end
 
 """
     sampler_for_process(sampler::TemperedSampler, state::TemperedState, I...)
@@ -60,7 +65,7 @@ numtemps(sampler::TemperedSampler) = length(sampler.chain_to_beta)
 Return the sampler corresponding to the process indexed by `I...`.
 """
 function sampler_for_process(sampler::TemperedSampler, state::TemperedState, I...)
-    return _sampler_for_process_temper(sampler.sampler, state.swapstate, I...)
+    return _sampler_for_process_temper(sampler.sampler, state, I...)
 end
 
 # If `sampler` is a `MultiSampler`, we assume it's ordered according to chains.
@@ -97,6 +102,13 @@ beta_for_process(state::TemperedState, I...) = beta_for_process(state.chain_to_b
 function beta_for_process(chain_to_beta::AbstractArray, proc2chain::AbstractArray, I...)
     return beta_for_chain(chain_to_beta, process_to_chain(proc2chain, I...))
 end
+
+"""
+    numsteps(sampler::TemperedSampler)
+
+Return number of inverse temperatures used by `sampler`.
+"""
+numtemps(sampler::TemperedSampler) = length(sampler.chain_to_beta)
 
 """
     tempered(sampler, inverse_temperatures; kwargs...)
