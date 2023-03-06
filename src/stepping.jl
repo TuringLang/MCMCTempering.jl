@@ -165,7 +165,7 @@ function swap_step(
     # corresponding to odd or even indices of the temperature ladder
     odd = rand(rng, Bool)
     for k in [Int(2 * i - odd) for i in 1:(floor((numtemps(sampler) - 1 + odd) / 2))]
-        state = swap_attempt(rng, model, sampler, state, k, k + 1, sampler.adapt)
+        state = swap_attempt(rng, model, sampler, state, k, k + 1)
     end
     return state
 end
@@ -181,7 +181,7 @@ function swap_step(
     # corresponding to odd or even indices of the temperature ladder
     odd = rand(rng, Bool)
     for k in [Int(2 * i - odd) for i in 1:(floor((length(model.models) - 1 + odd) / 2))]
-        state = swap_attempt(rng, model, state, k, k + 1, sampler.adapt)
+        state = swap_attempt(rng, model, sampler, state, k, k + 1)
     end
     return state
 end
@@ -198,7 +198,7 @@ function swap_step(
     # to odd and even indices of the temperature ladder
     odd = state.total_steps % (2 * sampler.swap_every) != 0
     for k in [Int(2 * i - odd) for i in 1:(floor((numtemps(sampler) - 1 + odd) / 2))]
-        state = swap_attempt(rng, model, sampler, state, k, k + 1, sampler.adapt)
+        state = swap_attempt(rng, model, sampler, state, k, k + 1)
     end
     return state
 end
@@ -213,7 +213,7 @@ function swap_step(
     # Randomly pick one index `k` of the temperature ladder and
     # attempt a swap between the corresponding chain and its neighbour
     k = rand(rng, 1:(numtemps(sampler) - 1))
-    return swap_attempt(rng, model, sampler, state, k, k + 1, sampler.adapt)
+    return swap_attempt(rng, model, sampler, state, k, k + 1)
 end
 
 function swap_step(
@@ -228,7 +228,7 @@ function swap_step(
     chains = Set(1:numtemps(sampler))
     i = pop!(chains, rand(rng, chains))
     j = pop!(chains, rand(rng, chains))
-    return swap_attempt(rng, model, sampler, state, i, j, sampler.adapt)
+    return swap_attempt(rng, model, sampler, state, i, j)
 end
 
 function swap_step(
@@ -244,7 +244,7 @@ function swap_step(
     while length(chains) >= 2
         i = pop!(chains, rand(rng, chains))
         j = pop!(chains, rand(rng, chains))
-        state = swap_attempt(rng, model, sampler, state, i, j, sampler.adapt)
+        state = swap_attempt(rng, model, sampler, state, i, j)
     end
     return state
 end

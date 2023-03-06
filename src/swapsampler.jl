@@ -1,4 +1,37 @@
 """
+    ProcessOrdering
+
+Specifies that the `model` should be treated as process-ordered.
+"""
+struct ProcessOrdering end
+
+"""
+    ChainOrdering
+
+Specifies that the `model` should be treated as chain-ordered.
+"""
+struct ChainOrdering end
+
+"""
+    SwapSampler <: AbstractMCMC.AbstractSampler
+
+# Fields
+$(FIELDS)
+"""
+struct SwapSampler{S,O} <: AbstractMCMC.AbstractSampler
+    "swap strategy to use"
+    strategy::S
+    "ordering assumed for input models"
+    model_order::O
+end
+
+SwapSampler() = SwapSampler(ReversibleSwap())
+SwapSampler(strategy) = SwapSampler(strategy, ChainOrdering())
+
+swapstrategy(sampler::SwapSampler) = sampler.strategy
+ordering(::SwapSampler) = ChainOrdering()
+
+"""
     SwapState
 
 A general implementation of a state for a [`TemperedSampler`](@ref).
@@ -66,124 +99,77 @@ The indices here are exactly those represented by `states[k].chain_to_process[1]
 @concrete struct SwapState
     "collection of states for each process"
     states
-    "collection of (inverse) temperatures β corresponding to each chain"
-    chain_to_beta
     "collection indices such that `chain_to_process[i] = j` if the j-th process corresponds to the i-th chain"
     chain_to_process
     "collection indices such that `process_chain_to[j] = i` if the i-th chain corresponds to the j-th process"
     process_to_chain
     "total number of steps taken"
     total_steps
-    "contains all necessary information for adaptation of inverse_temperatures"
-    adaptation_states
-    "flag which specifies wether this was a swap-step or not"
-    is_swap
     "swap acceptance ratios on log-scale"
     swap_acceptance_ratios
 end
 
-"""
-    process_to_chain(state, I...)
-
-Return the chain index corresponding to the process index `I`.
-"""
-process_to_chain(state::SwapState, I...) = process_to_chain(state.process_to_chain, I...)
-# NOTE: Array impl. is useful for testing.
-# process_to_chain(proc2chain::AbstractArray, I...) = proc2chain[I...]
-
-"""
-    chain_to_process(state, I...)
-
-Return the process index corresponding to the chain index `I`.
-"""
-chain_to_process(state::SwapState, I...) = chain_to_process(state.chain_to_process, I...)
-# NOTE: Array impl. is useful for testing.
-# chain_to_process(chain2proc::AbstractArray, I...) = chain2proc[I...]
-
-"""
-    transition_for_chain(state, transitions[, I...])
-
-Return the transition corresponding to the chain indexed by `I...`.
-If `I...` is not specified, the transition corresponding to `β=1.0` will be returned, i.e. `I = (1, )`.
-"""
-transition_for_chain(state::SwapState, transitions) = transition_for_chain(state, transitions, 1)
-function transition_for_chain(state::SwapState, transitions, I...)
-    return transition_for_process(state, transitions, chain_to_process(state, I...))
+# TODO: Can we support more?
+function SwapState(state::MultipleStates)
+    process_to_chain = collect(1:length(state.states))
+    chain_to_process = copy(process_to_chain)
+    return SwapState(state.states, chain_to_process, process_to_chain, 1, Dict{Int,Float64}())
 end
 
-"""
-    transition_for_process(state, transitions, I...)
+# Defer these to `MultipleStates`.
+function getparams_and_logprob(state::SwapState)
+    # NOTE: Returns parameters, etc. in the chain-ordering, not the process-ordering.
+    return getparams_and_logprob(MultipleStates(map(Base.Fix1(getindex, state.states), state.chain_to_process)))
+end
+function getparams_and_logprob(model, state::SwapState)
+    # NOTE: Returns parameters, etc. in the chain-ordering, not the process-ordering.
+    return getparams_and_logprob(model, MultipleStates(map(Base.Fix1(getindex, state.states), state.chain_to_process)))
+end
 
-Return the transition corresponding to the process indexed by `I...`.
-"""
-transition_for_process(state::SwapState, transitions, I...) = transition_for_process(transitions, I...)
-# transition_for_process(transitions, I...) = transitions[I...]
+function setparams_and_logprob!!(model, state::SwapState, params, logprobs)
+    # Order according to processes.
+    process_to_params = map(Base.Fix1(getindex, params), state.process_to_chain)
+    process_to_logprobs = map(Base.Fix1(getindex, logprobs), state.process_to_chain)
+    # Use the `MultipleStates`'s implementation to update the underlying states.
+    multistate = setparams_and_logprob!!(model, MultipleStates(state.states), process_to_params, process_to_logprobs)
+    # Update the states!
+    return @set state.states = multistate.states
+end
 
-"""
-    state_for_chain(state[, I...])
-
-Return the state corresponding to the chain indexed by `I...`.
-If `I...` is not specified, the state corresponding to `β=1.0` will be returned.
-"""
+process_to_chain(state::SwapState, I...) = process_to_chain(state.process_to_chain, I...)
+chain_to_process(state::SwapState, I...) = chain_to_process(state.chain_to_process, I...)
 state_for_chain(state::SwapState) = state_for_chain(state, 1)
 state_for_chain(state::SwapState, I...) = state_for_process(state, chain_to_process(state, I...))
-
-"""
-    state_for_process(state, I...)
-
-Return the state corresponding to the process indexed by `I...`.
-"""
 state_for_process(state::SwapState, I...) = state_for_process(state.states, I...)
-# state_for_process(states, I...) = states[I...]
 
-"""
-    beta_for_chain(state[, I...])
+function model_for_process(sampler::SwapSampler, model::MultiModel, state::SwapState, I...)
+    return model_for_process(ordering(sampler), sampler, model, state, I...)
+end
 
-Return the β corresponding to the chain indexed by `I...`.
-If `I...` is not specified, the β corresponding to `β=1.0` will be returned.
-"""
-beta_for_chain(state::SwapState) = beta_for_chain(state, 1)
-beta_for_chain(state::SwapState, I...) = beta_for_chain(state.chain_to_beta, I...)
-# NOTE: Array impl. is useful for testing.
-# beta_for_chain(chain_to_beta::AbstractArray, I...) = chain_to_beta[I...]
+function model_for_process(::ProcessOrdering, sampler::SwapSampler, model::MultiModel, state::SwapState, I...)
+    # `model` is expected to be ordered according to process index, hence we just extract the corresponding index.
+    return model.models[I...]
+end
 
-"""
-    beta_for_process(state, I...)
+function model_for_process(ordering::ChainOrdering, sampler::SwapSampler, model::MultiModel, state::SwapState, I...)
+    # `model` is expected to be ordered according to chain ordering, hence we need to map the
+    # process index `I` to the chain index.
+    return model_for_chain(ordering, sampler, model, state, process_to_chain(state, I...))
+end
 
-Return the β corresponding to the process indexed by `I...`.
-"""
-beta_for_process(state::SwapState, I...) = beta_for_process(state.chain_to_beta, state.process_to_chain, I...)
-# NOTE: Array impl. is useful for testing.
-# function beta_for_process(chain_to_beta::AbstractArray, proc2chain::AbstractArray, I...)
-#     return beta_for_chain(chain_to_beta, process_to_chain(proc2chain, I...))
-# end
+function model_for_chain(sampler::SwapSampler, model::MultiModel, state::SwapState, I...)
+    return model_for_chain(ordering(sampler), sampler, model, state, I...)
+end
 
-# """
-#     model_for_chain(sampler, model, state, I...)
+function model_for_chain(ordering::ProcessOrdering, sampler::SwapSampler, model::MultiModel, state::SwapState, I...)
+    # `model` is expected to be ordered according to process index, hence we map chain index to process index
+    # and extract the model corresponding to said process.
+    return model_for_process(ordering, sampler, model, state, chain_to_process(state, I...))
+end
 
-# Return the model corresponding to the chain indexed by `I...`.
-# """
-# function model_for_chain(sampler, model, state, I...)
-#     return make_tempered_model(sampler, model, beta_for_chain(state, I...))
-# end
-
-# """
-#     model_for_process(sampler, model, state, I...)
-
-# Return the model corresponding to the process indexed by `I...`.
-# """
-# function model_for_process(sampler, model, state, I...)
-#     return make_tempered_model(sampler, model, beta_for_process(state, I...))
-# end
-
-# HACK: Remove this.
-state_from(model, swapstate::SwapState, state) = error("no")
-function state_from(model, swapstate::SwapState, multistate::MultipleStates)
-    @assert length(swapstate.states) == length(multistate.states) "number of states ($(length(swapstate.states)) and $(length(multistate.states))) does not match"
-    states = map(swapstate.states, multistate.states) do state_from_swap, state_from_multi
-        state_from(model, state_from_swap, state_from_multi)
-    end
-    return @set swapstate.states = states
+function model_for_chain(::ChainOrdering, sampler::SwapSampler, model::MultiModel, state::SwapState, I...)
+    # `model` is expected to be ordered according to chain index, hence we just extract the corresponding index.
+    return model.models[I...]
 end
 
 """
@@ -191,24 +177,10 @@ end
 
 Transition type for tempered samplers.
 """
-struct SwapTransition{S}
-    transition::S
+@concrete struct SwapTransition
+    chain_to_process
+    process_to_chain
 end
-
-getparams_and_logprob(transition::SwapTransition) = getparams_and_logprob(transition.transition)
-getparams_and_logprob(model, transition::SwapTransition) = getparams_and_logprob(model, transition.transition)
-
-
-# AbstractMCMC interface
-using AbstractMCMC: AbstractMCMC
-
-struct SwapSampler{S} <: AbstractMCMC.AbstractSampler
-    strategy::S
-end
-
-SwapSampler() = SwapSampler(ReversibleSwap())
-
-swapstrategy(sampler::SwapSampler) = sampler.strategy
 
 # NOTE: This does not have an initial `step`! This is because we need
 # states to work with before we can do anything. Hence it only makes
@@ -225,111 +197,84 @@ function AbstractMCMC.step(
 
     # Perform a swap step.
     state = swap_step(rng, model, sampler, state)
-    @set! state.is_swap = true
     @set! state.total_steps += 1
 
     # We want to return the transition for the _first_ chain, i.e. the chain usually corresponding to `β=1.0`.
     # TODO: What should we return here?
-    return SwapTransition(chain_to_process(state)), state
+    return SwapTransition(deepcopy(state.chain_to_process), deepcopy(state.process_to_chain)), state
 end
 
-# Tempered sampler.
-@concrete struct TemperedComposition <: AbstractMCMC.AbstractSampler
-    "sampler to use for swapping"
-    swapsampler
-    "sampler(s) used to target the tempered distributions"
-    sampler
-    "collection of inverse temperatures β; β[i] correponds i-th tempered model"
-    inverse_temperatures
-    "the swap strategy that will be used when proposing swaps"
-    swap_strategy
-    # TODO: This should be replaced with `P` just being some `NoAdapt` type.
-    "boolean flag specifying whether or not to adapt"
-    adapt
-    "adaptation parameters"
-    adaptation_states
-end
-
-function TemperedComposition(swapsampler, sampler, inverse_temperatures)
-    return TemperedComposition(swapsampler, sampler, inverse_temperatures, ReversibleSwap(), false, nothing)
-end
-
-numtemps(sampler::TemperedComposition) = length(sampler.inverse_temperatures)
-
-# TODO: Improve.
-getsampler(sampler::TemperedComposition, I...) = getsampler(sampler.sampler, I...)
-
-# TODO: Make this configurable.
-saveall(sampler::TemperedComposition) = true
-
+# NOTE: The default initial `step` for `CompositionSampler` simply calls the two different
+# `step` methods, but since `SwapSampler` does not have such an implementation this will fail.
+# Instead we overload the initial `step` for `CompositionSampler` involving `SwapSampler` to
+# first take a `step` using the non-swapsampler and then construct `SwapState` from the resulting state.
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
-    model::AbstractMCMC.AbstractModel,
-    sampler::TemperedComposition;
+    model::MultiModel,
+    sampler::CompositionSampler{<:AbstractMCMC.AbstractSampler,<:SwapSampler};
     kwargs...
 )
-    # Create a `MultiSampler` and `MultiModel`.
-    multimodel = MultiModel([
-        make_tempered_model(sampler, model, sampler.inverse_temperatures[i])
-        for i in 1:numtemps(sampler)
-    ])
-    multisampler = MultiSampler([getsampler(sampler, i) for i in 1:numtemps(sampler)])
-    @info "heyo 1" multimodel multisampler
-    multistate = last(AbstractMCMC.step(rng, multimodel, multisampler; kwargs...))
-    @info "heyo 2"
+    # This should hopefully be a `MultipleStates` or something since we're working with a `MultiModel`.
+    state_outer_initial = last(AbstractMCMC.step(rng, model, outer_sampler(sampler); kwargs...))
+    # NOTE: Since `SwapState` wraps a sequence of states from another sampler, we need `state_outer_initial`
+    # to initialize the `SwapState`.
+    state_inner_initial = SwapState(state_outer_initial)
 
-    # Make sure to collect, because we'll be using `setindex!(!)` later.
-    process_to_chain = collect(1:length(sampler.inverse_temperatures))
-    # Need to `copy` because this might be mutated.
-    chain_to_process = copy(process_to_chain)
-    swapstate = SwapState(
-        multistate.states,
-        sampler.inverse_temperatures,
-        chain_to_process,
-        process_to_chain,
-        1,
-        sampler.adaptation_states,
-        false,
-        Dict{Int,Float64}()
-    )
-
-    @info "heyo 3"
-    return AbstractMCMC.step(rng, model, sampler, composition_state(sampler, swapstate, multistate))
+    # Create the composition state, and take a full step.
+    state = composition_state(sampler, state_inner_initial, state_outer_initial)
+    return AbstractMCMC.step(rng, model, sampler, state; kwargs...)
 end
 
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
-    model::AbstractMCMC.AbstractModel,
-    sampler::TemperedComposition,
-    state;
+    model::MultiModel,
+    sampler::CompositionSampler{<:SwapSampler,<:AbstractMCMC.AbstractSampler};
     kwargs...
 )
-    @info "heyo 4"
-    # Get the samplers.
-    swapsampler = sampler.swapsampler
-    # Extract the previous states.
-    swapstate_prev, multistate_prev = inner_state(state), outer_state(state)
+    # This should hopefully be a `MultipleStates` or something since we're working with a `MultiModel`.
+    state_inner_initial = last(AbstractMCMC.step(rng, model, inner_sampler(sampler); kwargs...))
+    # NOTE: Since `SwapState` wraps a sequence of states from another sampler, we need `state_outer_initial`
+    # to initialize the `SwapState`.
+    state_outer_initial = SwapState(state_inner_initial)
 
-    # TODO: `SwapSampler` should probably only act on `MultiModel`.
-    multimodel_swap = MultiModel([model_for_process(sampler, model, state, i) for i in 1:numtemps(sampler)])
-    multisampler_swap = MultiSampler([swapstrategy(sampler) for i in 1:numtemps(sampler)])
-
-    # Update the `swapstate`.
-    swapstate = state_from(model, swapstate_prev, multistate_prev)
-    @info "heyo 5"
-    # Take a step with the swap sampler.
-    swaptransition, swapstate = AbstractMCMC.step(rng, multimodel_swap, swapsampler, swapstate; kwargs...)
-    @info "heyo 6"
-    # Create the multi-versions with the ordering corresponding to the processes.
-    multimodel = MultiModel([model_for_process(sampler, model, state, i) for i in 1:numtemps(sampler)])
-    multisampler = MultiSampler([sampler_for_process(sampler, state, i) for i in 1:numtemps(sampler)])
-    multistate = MultipleStates([state_for_process(state, i) for i in 1:numtemps(sampler)])
-
-    # Take a step with the multi sampler.
-    multitransition, multistate = AbstractMCMC.step(rng, multimodel, multisampler, multistate; kwargs...)
-
-    return (
-        composition_transition(sampler, swaptransition, multitransition),
-        composition_state(sampler, swapstate, multistate)
-    )
+    # Create the composition state, and take a full step.
+    state = composition_state(sampler, state_inner_initial, state_outer_initial)
+    return AbstractMCMC.step(rng, model, sampler, state; kwargs...)
 end
+
+@nospecialize function AbstractMCMC.step(
+    rng::Random.AbstractRNG,
+    model::MultiModel,
+    sampler::CompositionSampler{<:SwapSampler,<:SwapSampler};
+    kwargs...
+)
+    error("`SwapSampler` requires states from sampler other than `SwapSampler` to be initialized")
+end
+
+function swap_attempt(rng::Random.AbstractRNG, model::MultiModel, sampler::SwapSampler, state, i, j)
+    # Extract the relevant transitions.
+    state_i = state_for_chain(state, i)
+    state_j = state_for_chain(state, j)
+    # Evaluate logdensity for both parameters for each tempered density.
+    # NOTE: Assumes ordering of models is according to processes.
+    model_i = model_for_chain(sampler, model, state, i)
+    model_j = model_for_chain(sampler, model, state, j)
+    logπiθi, logπiθj = compute_logdensities(model_i, model_j, state_i, state_j)
+    logπjθj, logπjθi = compute_logdensities(model_i, model_j, state_j, state_i)
+
+    # If the proposed temperature swap is accepted according `logα`,
+    # swap the temperatures for future steps.
+    logα = swap_acceptance_pt(logπiθi, logπiθj, logπjθi, logπjθj)
+    should_swap = -Random.randexp(rng) ≤ logα
+    if should_swap
+        # TODO: Rename `swap_betas!` since no betas are involved anymore?
+        swap_betas!(state.chain_to_process, state.process_to_chain, i, j)
+    end
+
+    # Keep track of the (log) acceptance ratios.
+    state.swap_acceptance_ratios[i] = logα
+
+    # TODO: Handle adaptation.
+    return state
+end
+
