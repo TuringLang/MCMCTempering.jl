@@ -57,6 +57,8 @@ end
 ×(model1::AbstractMCMC.AbstractModel, model2::MultiModel) = MultiModel(combine(model1, model2.models))
 ×(model1::MultiModel, model2::MultiModel) = MultiModel(combine(model1.models, model2.models))
 
+Base.length(model::MultiModel) = length(model.models)
+
 # TODO: Make these subtypes of `AbstractVector`?
 """
     MultipleTransitions
