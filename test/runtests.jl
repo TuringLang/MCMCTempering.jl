@@ -355,8 +355,7 @@ end
             integrator = AdvancedHMC.Leapfrog(initial_ϵ)
             proposal = AdvancedHMC.NUTS{AdvancedHMC.MultinomialTS, AdvancedHMC.GeneralisedNoUTurn}(integrator)
             metric = AdvancedHMC.DiagEuclideanMetric(LogDensityProblems.dimension(model))
-            adaptor = AdvancedHMC.StanHMCAdaptor(AdvancedHMC.MassMatrixAdaptor(metric), AdvancedHMC.StepSizeAdaptor(0.8, integrator))
-            sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric, adaptor)
+            sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric)
 
             # Sample using HMC.
             samples_hmc = sample(model, sampler_hmc, num_iterations; init_params=copy(init_params), progress=false)
@@ -370,11 +369,11 @@ end
             chain_tempered = test_and_sample_model(
                 model,
                 sampler_hmc,
-                [1, 0.25, 0.1, 0.01],
+                [1, 0.75, 0.5, 0.25, 0.1, 0.01],
                 swap_strategy=MCMCTempering.ReversibleSwap(),
                 num_iterations=num_iterations,
                 adapt=false,
-                mean_swap_rate_bound=0,
+                mean_swap_rate_bound=0.1,
                 init_params=copy(init_params),
                 param_names=param_names,
                 progress=false
@@ -384,7 +383,8 @@ end
             # TODO: Make it not broken, i.e. produce reasonable results.
             compare_chains(chain_hmc, chain_tempered, atol=0.2, compare_std=false, compare_ess=true, isbroken=false)
         end
-        
+
+        # TODO: Debug this.
         @testset "AdvancedMH.jl" begin
             num_iterations = 2_000
             d = LogDensityProblems.dimension(model)
@@ -412,7 +412,7 @@ end
                 swap_strategy=MCMCTempering.ReversibleSwap(),
                 num_iterations=num_iterations,
                 adapt=false,
-                mean_swap_rate_bound=0,
+                mean_swap_rate_bound=0.1,
                 init_params=copy(init_params),
                 param_names=param_names
             )
