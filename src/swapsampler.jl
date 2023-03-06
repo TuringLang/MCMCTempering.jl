@@ -128,7 +128,7 @@ function swap_attempt(rng::Random.AbstractRNG, model::MultiModel, sampler::SwapS
     model_i = model_for_chain(sampler, model, state, i)
     model_j = model_for_chain(sampler, model, state, j)
     logπiθi, logπiθj = compute_logdensities(model_i, model_j, state_i, state_j)
-    logπjθj, logπjθi = compute_logdensities(model_i, model_j, state_j, state_i)
+    logπjθj, logπjθi = compute_logdensities(model_j, model_i, state_j, state_i)
 
     # If the proposed temperature swap is accepted according `logα`,
     # swap the temperatures for future steps.
