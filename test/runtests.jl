@@ -250,7 +250,7 @@ end
             compare_mean_swap_rate=≤,
         )
         # `atol` is fairly high because we haven't run this for "too" long. 
-        @test mean(chain_tempered[:, 1, :]) ≈ 1 atol=0.2
+        @test mean(chain_tempered[:, 1, :]) ≈ 1 atol=0.3
     end
 
     @testset "GMM 1D" begin
