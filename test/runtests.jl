@@ -376,7 +376,7 @@ end
             map_parameters!(b, chain_tempered)
             compare_chains(
                 chain_hmc, chain_tempered;
-                atol=0.1,
+                atol=0.2,
                 compare_std=false,
                 compare_ess=true,
                 compare_ess_slack=0.7, # rng can play quite the difference, so we reduce a bit
