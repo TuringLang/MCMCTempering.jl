@@ -348,7 +348,7 @@ end
         end
 
         @testset "AdvancedHMC.jl" begin
-            num_iterations = 2_000
+            num_iterations = 5_000
 
             # Set up HMC smpler.
             initial_ϵ = 0.1
@@ -364,6 +364,24 @@ end
                 param_names=param_names,
             )
             map_parameters!(b, chain_hmc)
+
+            # Make sure that we get the "same" result when only using the inverse temperature 1.
+            sampler_tempered = MCMCTempering.TemperedSampler(sampler_hmc, [1])
+            chain_tempered = sample(
+                model, sampler_tempered, num_iterations;
+                init_params=copy(init_params),
+                chain_type=MCMCChains.Chains,
+                progress=false,
+            )
+            map_parameters!(b, chain_tempered)
+            compare_chains(
+                chain_hmc, chain_tempered;
+                atol=0.1,
+                compare_std=false,
+                compare_ess=true,
+                compare_ess_slack=0.7, # rng can play quite the difference, so we reduce a bit
+                isbroken=false
+            )
 
             # Sample using tempered HMC.
             chain_tempered = test_and_sample_model(
@@ -386,7 +404,7 @@ end
 
         # TODO: Debug this.
         @testset "AdvancedMH.jl" begin
-            num_iterations = 2_000
+            num_iterations = 10_000
             d = LogDensityProblems.dimension(model)
 
             # Set up MALA sampler.
@@ -394,17 +412,33 @@ end
             sampler_mh = MALA(∇ -> MvNormal(σ² * ∇, 2σ² * I))
 
             # Sample using MALA.
-            samples_mh = AbstractMCMC.sample(
+            chain_mh = AbstractMCMC.sample(
                 model, sampler_mh, num_iterations;
-                init_params=copy(init_params), progress=false
-            )
-            chain_mh = AbstractMCMC.bundle_samples(
-                samples_mh, MCMCTempering.maybe_wrap_model(model), sampler_mh, samples_mh[1], MCMCChains.Chains;
-                param_names=param_names
+                init_params=copy(init_params),
+                progress=false,
+                chain_type=MCMCChains.Chains
             )
             map_parameters!(b, chain_mh)
 
-            # Sample using tempered MALA.
+            # Make sure that we get the "same" result when only using the inverse temperature 1.
+            sampler_tempered = MCMCTempering.TemperedSampler(sampler_mh, [1])
+            chain_tempered = sample(
+                model, sampler_tempered, num_iterations;
+                init_params=copy(init_params),
+                chain_type=MCMCChains.Chains,
+                progress=false,
+            )
+            map_parameters!(b, chain_tempered)
+            compare_chains(
+                chain_mh, chain_tempered;
+                atol=0.2,
+                compare_std=false,
+                compare_ess=true,
+                compare_ess_slack=0.5, # rng can play quite the difference, so we reduce a bit
+                isbroken=false,
+            )
+
+            # Sample using actual tempering.
             chain_tempered = test_and_sample_model(
                 model,
                 sampler_mh,
@@ -419,7 +453,7 @@ end
             map_parameters!(b, chain_tempered)
             
             # Need a large atol as MH is not great on its own
-            compare_chains(chain_mh, chain_tempered, atol=0.4, compare_std=false, compare_ess=true, isbroken=false)
+            compare_chains(chain_mh, chain_tempered, atol=0.2, compare_std=false, compare_ess=true, isbroken=false)
         end
     end
 
