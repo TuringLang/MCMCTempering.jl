@@ -153,7 +153,7 @@ function tempered(
     inverse_temperatures::Vector{<:Real};
     swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
     # TODO: Change `swap_every` to something like `number_of_iterations_per_swap`.
-    swap_every::Integer=1,
+    steps_per_swap::Integer=1,
     adapt::Bool=false,
     adapt_target::Real=0.234,
     adapt_stepsize::Real=1,
@@ -163,14 +163,14 @@ function tempered(
     kwargs...
 )
     !(adapt && typeof(swap_strategy) <: Union{RandomSwap, SingleRandomSwap}) || error("Adaptation of the inverse temperature ladder is not currently supported under the chosen swap strategy.")
-    swap_every ≥ 1 || error("`swap_every` must take a positive integer value.")
+    steps_per_swap ≥ 1 || error("`swap_every` must take a positive integer value greater ≥1.")
     inverse_temperatures = check_inverse_temperatures(inverse_temperatures)
     adaptation_states = init_adaptation(
         adapt_schedule, inverse_temperatures, adapt_target, adapt_scale, adapt_eta, adapt_stepsize
     )
     # NOTE: We just make a repeated sampler for `sampler_inner`.
     # TODO: Generalize. Allow passing in a `MultiSampler`, etc.
-    sampler_inner = sampler^swap_every
+    sampler_inner = sampler^steps_per_swap
     # FIXME: Remove the hard-coded `2` for swap-every, and change `should_swap` acoordingly.
     return TemperedSampler(sampler_inner, inverse_temperatures, swap_strategy, adapt, adaptation_states)
 end
