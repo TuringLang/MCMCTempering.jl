@@ -116,6 +116,26 @@ function setparams_and_logprob!!(model, state::SwapState, params, logprobs)
 end
 
 """
+    sort_by_chain(::ChainOrdering, state, xs)
+    sort_by_chain(::ProcessOrdering, state, xs)
+
+Return `xs` sorted according to the chain indices, as specified by `state`.
+"""
+sort_by_chain(::ChainOrdering, ::Any, xs) = xs
+sort_by_chain(::ProcessOrdering, state, xs) = [xs[chain_to_process(state, i)] for i = 1:length(xs)]
+sort_by_chain(::ProcessOrdering, state, xs::Tuple) = ntuple(i -> xs[chain_to_process(state, i)], length(xs))
+
+"""
+    sort_by_process(::ProcessOrdering, state, xs)
+    sort_by_process(::ChainOrdering, state, xs)
+
+Return `xs` sorted according to the process indices, as specified by `state`.
+"""
+sort_by_process(::ProcessOrdering, ::Any, xs) = xs
+sort_by_process(::ChainOrdering, state, xs) = [xs[process_to_chain(state, i)] for i = 1:length(xs)]
+sort_by_process(::ChainOrdering, state, xs::Tuple) = ntuple(i -> xs[process_to_chain(state, i)], length(xs))
+
+"""
     process_to_chain(state, I...)
 
 Return the chain index corresponding to the process index `I`.
@@ -154,6 +174,8 @@ state_for_process(proc2state, I...) = proc2state[I...]
     model_for_chain([ordering, ]sampler, model, state, I...)
 
 Return the model corresponding to the chain indexed by `I...`.
+
+If no `ordering` is specified, [`ordering(sampler)`](@ref) is used.
 """
 model_for_chain(sampler, model, state, I...) = model_for_chain(ordering(sampler), sampler, model, state, I...)
 
@@ -165,14 +187,10 @@ Return the model corresponding to the process indexed by `I...`.
 model_for_process(sampler, model, state, I...) = model_for_process(ordering(sampler), sampler, model, state, I...)
 
 """
-    models_for_processes(::ChainOrdering, models, state)
+    models_for_processes(ordering, models, state)
 
-Return the models in the order of processes, assuming `models` is sorted according to chains.
+Return the models in the order of processes, assuming `models` is sorted according to `ordering`.
+
+See also: [`ProcessOrdering`](@ref), [`ChainOrdering`](@ref).
 """
-models_for_processes(::ChainOrdering, models, state::SwapState) = [
-    models[process_to_chain(state, i)] for i = 1:length(models)
-]
-models_for_processes(::ChainOrdering, models::Tuple, state::SwapState) = ntuple(length(models)) do i
-    models[process_to_chain(state, i)]
-end
-
+models_for_processes(ordering, models, state) = sort_by_process(ordering, state, models)
