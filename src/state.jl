@@ -1,23 +1,24 @@
 """
-    ProcessOrdering
+    ProcessOrder
 
 Specifies that the `model` should be treated as process-ordered.
 """
-struct ProcessOrdering end
+struct ProcessOrder end
 
 """
-    ChainOrdering
+    ChainOrder
 
 Specifies that the `model` should be treated as chain-ordered.
 """
-struct ChainOrdering end
+struct ChainOrder end
 
 """
-    ordering(sampler)
+    expected_order(x)
 
-Return either `ProcessOrdering` or `ChainOrdering` to indicate ordering.
+Return either `ProcessOrdering` or `ChainOrdering` to indicate the ordering
+`x` is expected to be working with.
 """
-function ordering end
+function expected_order end
 
 """
     SwapState
@@ -121,9 +122,9 @@ end
 
 Return `xs` sorted according to the chain indices, as specified by `state`.
 """
-sort_by_chain(::ChainOrdering, ::Any, xs) = xs
-sort_by_chain(::ProcessOrdering, state, xs) = [xs[chain_to_process(state, i)] for i = 1:length(xs)]
-sort_by_chain(::ProcessOrdering, state, xs::Tuple) = ntuple(i -> xs[chain_to_process(state, i)], length(xs))
+sort_by_chain(::ChainOrder, ::Any, xs) = xs
+sort_by_chain(::ProcessOrder, state, xs) = [xs[chain_to_process(state, i)] for i = 1:length(xs)]
+sort_by_chain(::ProcessOrder, state, xs::Tuple) = ntuple(i -> xs[chain_to_process(state, i)], length(xs))
 
 """
     sort_by_process(::ProcessOrdering, state, xs)
@@ -131,9 +132,9 @@ sort_by_chain(::ProcessOrdering, state, xs::Tuple) = ntuple(i -> xs[chain_to_pro
 
 Return `xs` sorted according to the process indices, as specified by `state`.
 """
-sort_by_process(::ProcessOrdering, ::Any, xs) = xs
-sort_by_process(::ChainOrdering, state, xs) = [xs[process_to_chain(state, i)] for i = 1:length(xs)]
-sort_by_process(::ChainOrdering, state, xs::Tuple) = ntuple(i -> xs[process_to_chain(state, i)], length(xs))
+sort_by_process(::ProcessOrder, ::Any, xs) = xs
+sort_by_process(::ChainOrder, state, xs) = [xs[process_to_chain(state, i)] for i = 1:length(xs)]
+sort_by_process(::ChainOrder, state, xs::Tuple) = ntuple(i -> xs[process_to_chain(state, i)], length(xs))
 
 """
     process_to_chain(state, I...)
@@ -177,14 +178,14 @@ Return the model corresponding to the chain indexed by `I...`.
 
 If no `ordering` is specified, [`ordering(sampler)`](@ref) is used.
 """
-model_for_chain(sampler, model, state, I...) = model_for_chain(ordering(sampler), sampler, model, state, I...)
+model_for_chain(sampler, model, state, I...) = model_for_chain(expected_order(sampler), sampler, model, state, I...)
 
 """
     model_for_process(sampler, model, state, I...)
 
 Return the model corresponding to the process indexed by `I...`.
 """
-model_for_process(sampler, model, state, I...) = model_for_process(ordering(sampler), sampler, model, state, I...)
+model_for_process(sampler, model, state, I...) = model_for_process(expected_order(sampler), sampler, model, state, I...)
 
 """
     models_for_processes(ordering, models, state)
