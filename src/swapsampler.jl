@@ -85,6 +85,13 @@ function AbstractMCMC.step(
     # - Need to also re-order `outersampler.samplers` :/
     #
     # Here (as in, below) we go with option (1), i.e. re-order the `models`.
+    # A full `step` then is as follows:
+    # 1. Sort models according to index processes using the `swapstate` from previous iteration.
+    # 2. Take step with `swapsampler`.
+    # 3. Sort models _again_ according to index processes using the new `swapstate`, since we
+    #    might have made a swap in (2).
+    # 4. Run multi-sampler.
+
     outersampler, swapsampler = outer_sampler(sampler), inner_sampler(sampler)
 
     # Get the states.
@@ -105,6 +112,9 @@ function AbstractMCMC.step(
 
     # Create the current state from `outerstate_prev` and `swapstate`, and `step` for `outersampler`.
     outertransition, outerstate = AbstractMCMC.step(
+        # TODO: Do we really need this `state_from` here? `swapstate` shouldn't be changing the
+        # parameters + `outerstate_prev` and `swapstate` are both sorted according to processes,
+        # hence a `swap` doesn't matter here (and is accounted for by swapping the `models` above).
         rng, model, outersampler, state_from(model, outerstate_prev, swapstate);
         kwargs...
     )
