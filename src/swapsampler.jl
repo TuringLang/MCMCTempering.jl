@@ -72,6 +72,65 @@ function AbstractMCMC.step(
     return SwapTransition(deepcopy(state.chain_to_process), deepcopy(state.process_to_chain)), state
 end
 
+function AbstractMCMC.step(
+    rng::Random.AbstractRNG,
+    model::MultiModel,
+    sampler::CompositionSampler{<:AbstractMCMC.AbstractSampler,<:SwapSampler},
+    state;
+    kwargs...
+)
+    # Reminder: a `swap` can be implemented in two different ways:
+    #
+    # 1. Swap the models and leave ordering of (sampler, state)-pair unchanged.
+    # 2. Swap (sampler, state)-pairs and leave ordering of models unchanged.
+    #
+    # (1) has the properties:
+    # + Easy to keep `outerstate` and `swapstate` in sync since their ordering is never changed.
+    # - Ordering of `outerstate` no longer corresponds to ordering of models, i.e. the returned
+    #   `outerstate.states[i]` does no longer correspond to a state targeting `model.models[i]`.
+    #   This will have to be adjusted in the `AbstractMCMC.bundle_samples` before, say, converting
+    #   into a `MCMCChains.Chains`.
+    #
+    # (2) has the properties:
+    # + Returned `outertransition` (and `outerstate`, if we want) has the same ordering as the models,
+    #   i.e. `outerstate.states[i]` now corresponds to `model.models[i]`!
+    # - Need to keep `outerstate` and `swapstate` in sync since their ordering now changes.
+    # - Need to also re-order `outersampler.samplers` :/
+    #
+    # Here (as in, below) we go with option (1), i.e. re-order the `models`.
+    outersampler, swapsampler = outer_sampler(sampler), inner_sampler(sampler)
+
+    # Get the states.
+    outerstate_prev, swapstate_prev = outer_state(state), inner_state(state)
+
+    # Re-order the models.
+    chain2models = model.models  # but keep the original chain → model around because we'll re-order again later
+    @set! model.models = models_for_processes(ChainOrdering(), chain2models, swapstate_prev)
+
+    # Step for the swap-sampler.
+    swaptransition, swapstate = AbstractMCMC.step(
+        rng, model, swapsampler, state_from(model, swapstate_prev, outerstate_prev);
+        kwargs...
+    )
+
+    # Re-order the models AGAIN, since we might have swapped some.
+    @set! model.models = models_for_processes(ChainOrdering(), chain2models, swapstate)
+
+    # Create the current state from `outerstate_prev` and `swapstate`, and `step` for `outersampler`.
+    outertransition, outerstate = AbstractMCMC.step(
+        rng, model, outersampler, state_from(model, outerstate_prev, swapstate);
+        kwargs...
+    )
+
+    # TODO: Should we re-order the transitions?
+    # Currently, one has to re-order the `outertransition` according to `swaptransition`
+    # in the `bundle_samples`. Is this the right approach though?
+    return (
+        composition_transition(sampler, swaptransition, outertransition),
+        composition_state(sampler, swapstate, outerstate)
+    )
+end
+
 # NOTE: The default initial `step` for `CompositionSampler` simply calls the two different
 # `step` methods, but since `SwapSampler` does not have such an implementation this will fail.
 # Instead we overload the initial `step` for `CompositionSampler` involving `SwapSampler` to

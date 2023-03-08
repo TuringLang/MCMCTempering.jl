@@ -68,6 +68,11 @@ outer_state(state::CompositionState) = state.state_outer
 inner_state(state::SequentialStates) = first(state.states)
 outer_state(state::SequentialStates) = last(state.states)
 
+inner_transition(transition::SequentialTransitions) = first(transition.transitions)
+outer_transition(transition::SequentialTransitions) = last(transition.transitions)
+outer_transition(transition) = transition
+
+# TODO: We really don't need to use `SequentialStates` here, do we?
 function composition_state(sampler, state_inner, state_outer)
     return if saveall(sampler)
         SequentialStates((state_inner, state_outer))

@@ -54,8 +54,7 @@ function AbstractMCMC.bundle_samples(
     ::Type{MCMCChains.Chains};
     kwargs...
 )
-    # Extract the transitions ordered according to the chains.
-    # TODO: Improve this.
+    # Extract the transitions ordered, which are ordered according to processes, according to the chains.
     ts_actual = [t.transition.transitions[first(t.swaptransition.chain_to_process)] for t in ts]
     return AbstractMCMC.bundle_samples(
         ts_actual,
