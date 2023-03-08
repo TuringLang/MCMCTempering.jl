@@ -40,7 +40,7 @@ end
 
 TemperedSampler(sampler, chain_to_beta; kwargs...) = TemperedSampler(; sampler, chain_to_beta, kwargs...)
 
-swapsampler(sampler::TemperedSampler) = SwapSampler(sampler.swapstrategy, ProcessOrdering())
+swapsampler(sampler::TemperedSampler) = SwapSampler(sampler.swapstrategy)
 
 # TODO: Do we need this now?
 getsampler(samplers, I...) = getindex(samplers, I...)

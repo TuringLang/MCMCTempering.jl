@@ -4,40 +4,27 @@
 # Fields
 $(FIELDS)
 """
-struct SwapSampler{S,O} <: AbstractMCMC.AbstractSampler
+struct SwapSampler{S} <: AbstractMCMC.AbstractSampler
     "swap strategy to use"
     strategy::S
-    "ordering assumed for input models"
-    model_order::O
 end
 
 SwapSampler() = SwapSampler(ReversibleSwap())
-SwapSampler(strategy) = SwapSampler(strategy, ChainOrdering())
 
 swapstrategy(sampler::SwapSampler) = sampler.strategy
-ordering(sampler::SwapSampler) = sampler.model_order
+ordering(::SwapSampler) = ProcessOrdering()
 
 # Interaction with the state.
+# NOTE: `SwapSampler` should only every interact with `ProcessOrdering`, so we don't implement `ChainOrdering`.
 function model_for_chain(ordering::ProcessOrdering, sampler::SwapSampler, model::MultiModel, state::SwapState, I...)
     # `model` is expected to be ordered according to process index, hence we map chain index to process index
     # and extract the model corresponding to said process.
     return model_for_process(ordering, sampler, model, state, chain_to_process(state, I...))
 end
 
-function model_for_chain(::ChainOrdering, sampler::SwapSampler, model::MultiModel, state::SwapState, I...)
-    # `model` is expected to be ordered according to chain index, hence we just extract the corresponding index.
-    return model.models[I...]
-end
-
 function model_for_process(::ProcessOrdering, sampler::SwapSampler, model::MultiModel, state::SwapState, I...)
     # `model` is expected to be ordered according to process index, hence we just extract the corresponding index.
     return model.models[I...]
-end
-
-function model_for_process(ordering::ChainOrdering, sampler::SwapSampler, model::MultiModel, state::SwapState, I...)
-    # `model` is expected to be ordered according to chain ordering, hence we need to map the
-    # process index `I` to the chain index.
-    return model_for_chain(ordering, sampler, model, state, process_to_chain(state, I...))
 end
 
 """
