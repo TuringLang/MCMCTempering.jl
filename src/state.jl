@@ -105,15 +105,8 @@ function SwapState(state::MultipleStates)
 end
 
 # Defer these to `MultipleStates`.
-# TODO: Should this depend on `orderinge`?
-function getparams_and_logprob(state::SwapState)
-    # NOTE: Returns parameters, etc. in the chain-ordering, not the process-ordering.
-    return getparams_and_logprob(MultipleStates(state.states))
-end
-function getparams_and_logprob(model, state::SwapState)
-    # NOTE: Returns parameters, etc. in the chain-ordering, not the process-ordering.
-    return getparams_and_logprob(model, MultipleStates(state.states))
-end
+getparams_and_logprob(state::SwapState) = getparams_and_logprob(MultipleStates(state.states))
+getparams_and_logprob(model, state::SwapState) = getparams_and_logprob(model, MultipleStates(state.states))
 
 function setparams_and_logprob!!(model, state::SwapState, params, logprobs)
     # Use the `MultipleStates`'s implementation to update the underlying states.
@@ -129,7 +122,7 @@ Return the chain index corresponding to the process index `I`.
 """
 process_to_chain(state::SwapState, I...) = process_to_chain(state.process_to_chain, I...)
 # NOTE: Array impl. is useful for testing.
-process_to_chain(proc2chain::AbstractArray, I...) = proc2chain[I...]
+process_to_chain(proc2chain, I...) = proc2chain[I...]
 
 """
     chain_to_process(state, I...)
@@ -138,7 +131,7 @@ Return the process index corresponding to the chain index `I`.
 """
 chain_to_process(state::SwapState, I...) = chain_to_process(state.chain_to_process, I...)
 # NOTE: Array impl. is useful for testing.
-chain_to_process(chain2proc::AbstractArray, I...) = chain2proc[I...]
+chain_to_process(chain2proc, I...) = chain2proc[I...]
 
 """
     state_for_chain(state[, I...])
@@ -155,7 +148,7 @@ state_for_chain(state::SwapState, I...) = state_for_process(state, chain_to_proc
 Return the state corresponding to the process indexed by `I...`.
 """
 state_for_process(state::SwapState, I...) = state_for_process(state.states, I...)
-state_for_process(states::AbstractArray, I...) = states[I...]
+state_for_process(proc2state, I...) = proc2state[I...]
 
 """
     model_for_chain([ordering, ]sampler, model, state, I...)
@@ -170,3 +163,16 @@ model_for_chain(sampler, model, state, I...) = model_for_chain(ordering(sampler)
 Return the model corresponding to the process indexed by `I...`.
 """
 model_for_process(sampler, model, state, I...) = model_for_process(ordering(sampler), sampler, model, state, I...)
+
+"""
+    models_for_processes(::ChainOrdering, models, state)
+
+Return the models in the order of processes, assuming `models` is sorted according to chains.
+"""
+models_for_processes(::ChainOrdering, models, state::SwapState) = [
+    models[process_to_chain(state, i)] for i = 1:length(models)
+]
+models_for_processes(::ChainOrdering, models::Tuple, state::SwapState) = ntuple(length(models)) do i
+    models[process_to_chain(state, i)]
+end
+

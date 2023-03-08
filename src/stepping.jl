@@ -72,40 +72,34 @@ function AbstractMCMC.step(
     state::TemperedState;
     kwargs...
 )
-    # Get the samplers.
-    swapspl = swapsampler(sampler)
-    # Extract the previous states.
-    swapstate_prev, multistate_prev = state.swapstate, state.state
+    # Create the tempered `MultiModel`.
+    multimodel = MultiModel([make_tempered_model(sampler, model, beta) for beta in state.chain_to_beta])
+    # Create the tempered `MultiSampler`.
+    multisampler = MultiSampler([getsampler(sampler, i) for i in 1:numtemps(sampler)])
+    # Create the composition which applies `SwapSampler` first.
+    sampler_composition = multisampler ∘ swapsampler(sampler)
 
-    # BUT to call `make_tempered_model`, the temperatures need to be available. 
-    multimodel_swap = MultiModel([model_for_process(sampler, model, state, i) for i in 1:numtemps(sampler)])
+    # Step!
+    # NOTE: This will internally re-order the models according to processes before taking steps,
+    # hence the resulting transitions and states will be in the order of processes, as we desire.
+    transition_composition, state_composition = AbstractMCMC.step(
+        rng,
+        multimodel,
+        sampler_composition,
+        composition_state(sampler_composition, state.swapstate, state.state);
+        kwargs...
+    )
 
-    # Update the `swapstate`.
-    swapstate = state_from(model, swapstate_prev, multistate_prev)
-    # Take a step with the swap sampler.
-    swaptransition, swapstate = AbstractMCMC.step(rng, multimodel_swap, swapspl, swapstate; kwargs...)
+    # Construct the `TemperedTransition` and `TemperedState`.
+    swaptransition = inner_transition(transition_composition)
+    outertransition = outer_transition(transition_composition)
 
-    # Update `swapstate` in `state`.
-    @set! state.swapstate = swapstate
-    
-    # Create the multi-versions with the ordering corresponding to the processes.
-    # NOTE: If the user-provided `model` is a `MultiModel`, then `model_for_process` implementation
-    # for `TemperedSampler` will assume the models are ordered according to chains rather than processes.
-    multimodel = MultiModel([model_for_process(sampler, model, state, i) for i in 1:numtemps(sampler)])
-    # NOTE: If `sampler.sampler` is a `MultiSampler`, then we should just select the corresponding index.
-    # Otherwise, we just replicate the `sampler.sampler`.
-    multispl = MultiSampler([sampler_for_process(sampler, state, i) for i in 1:numtemps(sampler)])
-    # A `SwapState` has to contain the states for the other sampler, otherwise the `SwapSampler` won't be
-    # able to compute the logdensities, etc.
-    multistate = MultipleStates([state_for_process(state, i) for i in 1:numtemps(sampler)])
+    swapstate = inner_state(state_composition)
+    outerstate = outer_state(state_composition)
 
-    # Take a step with the multi sampler.
-    multitransition, multistate = AbstractMCMC.step(rng, multimodel, multispl, multistate; kwargs...)
-
-    # TODO: Should we still call `composition_transition`?
     return (
-        TemperedTransition(swaptransition, multitransition),
-        TemperedState(swapstate, multistate, state.chain_to_beta)
+        TemperedTransition(swaptransition, outertransition),
+        TemperedState(swapstate, outerstate, state.chain_to_beta)
     )
 end
 
