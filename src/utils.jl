@@ -1,6 +1,11 @@
 # TODO: Move.
 chain_to_process(transition::SwapTransition, I...) = transition.chain_to_process[I...]
 
+"""
+    roundtrips(transitions)
+
+Return sequence of `(start_index, turnpoint_index, end_index)`-triples representing roundtrips.
+"""
 function roundtrips(transitions::AbstractVector{<:TemperedTransition})
     return roundtrips(map(Base.Fix2(getproperty, :swaptransition), transitions))
 end
