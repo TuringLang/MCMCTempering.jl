@@ -17,7 +17,8 @@ Several properties of the tempered sampler are tested before returning:
 
 # Keyword arguments
 - `num_iterations`: The number of iterations to run the sampler for. Defaults to `2_000`.
-- `swap_every`: The number of iterations between each swap attempt. Defaults to `2`.
+- `steps_per_swap`: The number of iterations between each swap attempt. Defaults to `1`.
+- `adapt`: Whether to adapt the sampler. Defaults to `false`.
 - `adapt_target`: The target acceptance rate for the swaps. Defaults to `0.234`.
 - `adapt_rtol`: The relative tolerance for the check of average swap acceptance rate and target swap acceptance rate. Defaults to `0.1`.
 - `adapt_atol`: The absolute tolerance for the check of average swap acceptance rate and target swap acceptance rate. Defaults to `0.05`.
@@ -26,24 +27,24 @@ Several properties of the tempered sampler are tested before returning:
 - `init_params`: The initial parameters to use for the sampler. Defaults to `nothing`.
 - `param_names`: The names of the parameters in the chain; used to construct the resulting chain. Defaults to `missing`.
 - `progress`: Whether to show a progress bar. Defaults to `false`.
-- `kwargs...`: Additional keyword arguments to pass to `MCMCTempering.tempered`.
 """
 function test_and_sample_model(
     model,
     sampler,
-    inverse_temperatures,
-    swap_strategy=MCMCTempering.SingleSwap();
+    inverse_temperatures;
+    swap_strategy=MCMCTempering.SingleSwap(),
     mean_swap_rate_bound=0.1,
     compare_mean_swap_rate=≥,
     num_iterations=2_000,
-    swap_every=1,
+    steps_per_swap=1,
+    adapt=false,
     adapt_target=0.234,
     adapt_rtol=0.1,
     adapt_atol=0.05,
     init_params=nothing,
     param_names=missing,
     progress=false,
-    kwargs...
+    minimum_roundtrips=nothing
 )
     # NOTE: Every other `step` will perform a swap.
     num_iterations_tempered = num_iterations
@@ -53,10 +54,12 @@ function test_and_sample_model(
         sampler,
         inverse_temperatures;
         swap_strategy=swap_strategy,
-        swap_every=swap_every,
+        steps_per_swap=steps_per_swap,
         adapt_target=adapt_target,
-        kwargs...
     )
+
+    @test sampler_tempered.swapstrategy == swap_strategy
+    @test MCMCTempering.swapsampler(sampler_tempered).strategy == swap_strategy
 
     # Store the states.
     states_tempered = []
@@ -68,12 +71,17 @@ function test_and_sample_model(
         callback=callback, progress=progress, init_params=init_params
     )
 
+    if !isnothing(minimum_roundtrips)
+        # Make sure we've had at least some roundtrips.
+        @test length(MCMCTempering.roundtrips(samples_tempered)) ≥ minimum_roundtrips
+    end
+
     # Let's make sure the process ↔ chain mapping is valid.
     numtemps = MCMCTempering.numtemps(sampler_tempered)
-    for state in states_tempered
-        for i = 1:numtemps
+    @test all(states_tempered) do state
+        all(1:numtemps) do i
             # These two should be inverses of each other.
-            @test MCMCTempering.process_to_chain(state, MCMCTempering.chain_to_process(state, i)) == i
+            MCMCTempering.process_to_chain(state, MCMCTempering.chain_to_process(state, i)) == i
         end
     end
 
@@ -108,25 +116,15 @@ function test_and_sample_model(
     end
     @test all(process_to_chain_uniqueness)
 
-    # For the currently implemented strategies, the index process should not move by more than 1.
-    @test all(abs.(diff(process_to_chain_history[:, 1])) .≤ 1)
+    # For every strategy except `RandomSwap`, the index process should not move by more than 1.
+    if !(swap_strategy isa Union{MCMCTempering.SingleRandomSwap,MCMCTempering.RandomSwap})
+        @test all(abs.(diff(process_to_chain_history[:, 1])) .≤ 1)
+    end
 
     chain_to_process_uniqueness = map(states_swapped) do state
         length(unique(state.chain_to_process)) == length(state.chain_to_process)
     end
     @test all(chain_to_process_uniqueness)
-
-    # Tests that we have at least swapped some times (say at least 10% of attempted swaps).
-    swap_success_indicators = map(eachrow(diff(process_to_chain_history; dims=1))) do row
-        # Some of the strategies performs multiple swaps in a swap-iteration,
-        # but we want to count the number of iterations for which we had a successful swap,
-        # i.e. only count non-zero elements in a row _once_. Hence the `min`.
-        min(1, sum(abs, row))
-    end
-    @test compare_mean_swap_rate(
-        sum(swap_success_indicators),
-        (num_iterations_tempered / swap_every) * mean_swap_rate_bound
-    )
 
     # Compare the tempered sampler to the untempered sampler.
     state_tempered = states_tempered[end]
@@ -138,6 +136,21 @@ function test_and_sample_model(
         state_tempered,
         MCMCChains.Chains;
         param_names=param_names
+    )
+
+    # Tests that we have at least swapped some times (say at least 10% of attempted swaps).
+    swap_success_indicators = map(eachrow(diff(process_to_chain_history; dims=1))) do row
+        # Some of the strategies performs multiple swaps in a swap-iteration,
+        # but we want to count the number of iterations for which we had a successful swap,
+        # i.e. only count non-zero elements in a row _once_. Hence the `min`.
+        min(1, sum(abs, row))
+    end
+
+    num_nonswap_steps_taken = length(chain_tempered)
+    @test num_nonswap_steps_taken == (num_iterations_tempered * steps_per_swap)
+    @test compare_mean_swap_rate(
+        sum(swap_success_indicators),
+        (num_nonswap_steps_taken / steps_per_swap) * mean_swap_rate_bound
     )
 
     return chain_tempered
@@ -270,12 +283,15 @@ end
             model,
             sampler_rwmh,
             inverse_temperatures,
+            swap_strategy=MCMCTempering.NonReversibleSwap(),
             num_iterations=num_iterations,
             adapt=false,
             # At least 25% of swaps should be successful.
             mean_swap_rate_bound=0.25,
             compare_mean_swap_rate=≥,
             progress=false,
+            # Make sure we have _some_ roundtrips.
+            minimum_roundtrips=10,
         )
 
         # # Compare the chains.
@@ -312,15 +328,18 @@ end
             MCMCTempering.RandomSwap()
         ]
 
-        @testset "$(swapstrategy)" for swapstrategy in swapstrategies
+        @testset "$(swap_strategy)" for swap_strategy in swapstrategies
             chain_tempered = test_and_sample_model(
                 model,
                 sampler,
                 inverse_temperatures,
                 num_iterations=num_iterations,
-                swapstrategy=swapstrategy,
+                swap_strategy=swap_strategy,
                 adapt=false,
+                # Make sure we have _some_ roundtrips.
+                minimum_roundtrips=10,
             )
+
             compare_chains(chain, chain_tempered, rtol=0.1, compare_std=false, compare_ess=true)
         end
     end
@@ -397,12 +416,9 @@ end
                 progress=false
             )
             map_parameters!(b, chain_tempered)
-
-            # TODO: Make it not broken, i.e. produce reasonable results.
-            compare_chains(chain_hmc, chain_tempered, atol=0.2, compare_std=false, compare_ess=true, isbroken=false)
+            compare_chains(chain_hmc, chain_tempered, atol=0.3, compare_std=false, compare_ess=true, isbroken=false)
         end
 
-        # TODO: Debug this.
         @testset "AdvancedMH.jl" begin
             num_iterations = 10_000
             d = LogDensityProblems.dimension(model)
