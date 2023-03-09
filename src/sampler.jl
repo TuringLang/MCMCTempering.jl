@@ -171,6 +171,5 @@ function tempered(
     # NOTE: We just make a repeated sampler for `sampler_inner`.
     # TODO: Generalize. Allow passing in a `MultiSampler`, etc.
     sampler_inner = sampler^steps_per_swap
-    # FIXME: Remove the hard-coded `2` for swap-every, and change `should_swap` acoordingly.
     return TemperedSampler(sampler_inner, inverse_temperatures, swap_strategy, adapt, adaptation_states)
 end
