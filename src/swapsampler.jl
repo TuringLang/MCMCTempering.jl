@@ -173,32 +173,3 @@ end
 )
     error("`SwapSampler` requires states from sampler other than `SwapSampler` to be initialized")
 end
-
-function swap_attempt(rng::Random.AbstractRNG, model::MultiModel, sampler::SwapSampler, state, i, j)
-    # Extract the relevant transitions.
-    state_i = state_for_chain(state, i)
-    state_j = state_for_chain(state, j)
-    # Evaluate logdensity for both parameters for each tempered density.
-    # NOTE: `SwapSampler` should only be working with models ordered according to `ProcessOrder`,
-    # never `ChainOrder`, hence why we have the below.
-    model_i = model_for_chain(ProcessOrder(), sampler, model, state, i)
-    model_j = model_for_chain(ProcessOrder(), sampler, model, state, j)
-    logπiθi, logπiθj = compute_logdensities(model_i, model_j, state_i, state_j)
-    logπjθj, logπjθi = compute_logdensities(model_j, model_i, state_j, state_i)
-
-    # If the proposed temperature swap is accepted according `logα`,
-    # swap the temperatures for future steps.
-    logα = swap_acceptance_pt(logπiθi, logπiθj, logπjθi, logπjθj)
-    should_swap = -Random.randexp(rng) ≤ logα
-    if should_swap
-        # TODO: Rename `swap_betas!` since no betas are involved anymore?
-        swap_betas!(state.chain_to_process, state.process_to_chain, i, j)
-    end
-
-    # Keep track of the (log) acceptance ratios.
-    state.swap_acceptance_ratios[i] = logα
-
-    # TODO: Handle adaptation.
-    return state
-end
-
