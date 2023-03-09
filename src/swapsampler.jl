@@ -99,7 +99,7 @@ function AbstractMCMC.step(
 
     # Re-order the models.
     chain2models = model.models  # but keep the original chain → model around because we'll re-order again later
-    @set! model.models = models_for_processes(ChainOrder(), chain2models, swapstate_prev)
+    @set! model.models = models_by_processes(ChainOrder(), chain2models, swapstate_prev)
 
     # Step for the swap-sampler.
     swaptransition, swapstate = AbstractMCMC.step(
@@ -108,7 +108,7 @@ function AbstractMCMC.step(
     )
 
     # Re-order the models AGAIN, since we might have swapped some.
-    @set! model.models = models_for_processes(ChainOrder(), chain2models, swapstate)
+    @set! model.models = models_by_processes(ChainOrder(), chain2models, swapstate)
 
     # Create the current state from `outerstate_prev` and `swapstate`, and `step` for `outersampler`.
     outertransition, outerstate = AbstractMCMC.step(
