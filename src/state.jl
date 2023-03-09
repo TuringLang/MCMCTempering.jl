@@ -13,14 +13,6 @@ Specifies that the `model` should be treated as chain-ordered.
 struct ChainOrder end
 
 """
-    expected_order(x)
-
-Return either `ProcessOrdering` or `ChainOrdering` to indicate the ordering
-`x` is expected to be working with.
-"""
-function expected_order end
-
-"""
     SwapState
 
 A general implementation of a state for a [`TemperedSampler`](@ref).
