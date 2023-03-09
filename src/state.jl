@@ -160,8 +160,8 @@ chain_to_process(chain2proc, I...) = chain2proc[I...]
 Return the state corresponding to the chain indexed by `I...`.
 If `I...` is not specified, the state corresponding to `β=1.0` will be returned.
 """
-state_for_chain(state::SwapState) = state_for_chain(state, 1)
-state_for_chain(state::SwapState, I...) = state_for_process(state, chain_to_process(state, I...))
+state_for_chain(state) = state_for_chain(state, 1)
+state_for_chain(state, I...) = state_for_process(state, chain_to_process(state, I...))
 
 """
     state_for_process(state, I...)

@@ -61,7 +61,7 @@ function AbstractMCMC.bundle_samples(
         ts_actual,
         model,
         sampler_for_chain(sampler, state, 1),
-        state_for_chain(state.swapstate),
+        state_for_chain(state, 1),
         MCMCChains.Chains;
         kwargs...
     )
