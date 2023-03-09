@@ -75,7 +75,12 @@ function AbstractMCMC.step(
     # Create the tempered `MultiModel`.
     multimodel = MultiModel([make_tempered_model(sampler, model, beta) for beta in state.chain_to_beta])
     # Create the tempered `MultiSampler`.
-    multisampler = MultiSampler([getsampler(sampler, i) for i in 1:numtemps(sampler)])
+    # We're assuming the user has given the samplers in an order according to the initial models.
+    multisampler = MultiSampler(samplers_by_processes(
+        ChainOrder(),
+        [getsampler(sampler, i) for i in 1:numtemps(sampler)],
+        state.swapstate
+    ))
     # Create the composition which applies `SwapSampler` first.
     sampler_composition = multisampler ∘ swapsampler(sampler)
 

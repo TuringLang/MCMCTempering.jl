@@ -188,10 +188,19 @@ Return the model corresponding to the process indexed by `I...`.
 model_for_process(sampler, model, state, I...) = model_for_process(expected_order(sampler), sampler, model, state, I...)
 
 """
-    models_for_processes(ordering, models, state)
+    models_by_processes(ordering, models, state)
 
 Return the models in the order of processes, assuming `models` is sorted according to `ordering`.
 
 See also: [`ProcessOrdering`](@ref), [`ChainOrdering`](@ref).
 """
-models_for_processes(ordering, models, state) = sort_by_process(ordering, state, models)
+models_by_processes(ordering, models, state) = sort_by_process(ordering, state, models)
+
+"""
+    samplers_by_processes(ordering, samplers, state)
+
+Return the `samplers` in the order of processes, assuming `samplers` is sorted according to `ordering`.
+
+See also: [`ProcessOrdering`](@ref), [`ChainOrdering`](@ref).
+"""
+samplers_by_processes(ordering, samplers, state) = sort_by_process(ordering, state, samplers)
