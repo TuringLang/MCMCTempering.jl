@@ -79,11 +79,11 @@ this overrides and disables all swapping functionality.
 struct NoSwap <: AbstractSwapStrategy end
 
 """
-    swap_betas!(chain_to_process, process_to_chain, i, j)
+    swap!(chain_to_process, process_to_chain, i, j)
 
 Swaps the `i`th and `j`th temperatures in place.
 """
-function swap_betas!(chain_to_process, process_to_chain, i, j)
+function swap!(chain_to_process, process_to_chain, i, j)
     # TODO: Use BangBang's `@set!!` to also support tuples?
     # Extract the process index for each of the chains.
     process_for_chain_i, process_for_chain_j = chain_to_process[i], chain_to_process[j]
@@ -171,8 +171,7 @@ function swap_attempt(rng::Random.AbstractRNG, model::MultiModel, sampler::SwapS
     logα = swap_acceptance_pt(logπiθi, logπiθj, logπjθi, logπjθj)
     should_swap = -Random.randexp(rng) ≤ logα
     if should_swap
-        # TODO: Rename `swap_betas!` since no betas are involved anymore?
-        swap_betas!(state.chain_to_process, state.process_to_chain, i, j)
+        swap!(state.chain_to_process, state.process_to_chain, i, j)
     end
 
     # Keep track of the (log) acceptance ratios.
