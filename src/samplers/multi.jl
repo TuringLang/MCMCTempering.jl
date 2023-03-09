@@ -118,14 +118,6 @@ function setparams_and_logprob!!(model::MultiModel, state::MultipleStates, param
     @assert length(model.models) == length(params) == length(logprobs) == length(state.states) "The number of models, states, parameters, and log probabilities must match."
     return @set state.states = map(setparams_and_logprob!!, model.models, state.states, params, logprobs)
 end
-# NOTE: If we're not working with a `MultiModel`, we assume we just have to pass it on.
-function setparams_and_logprob!!(model, state::MultipleStates, params, logprobs)
-    @assert length(params) == length(logprobs) == length(state.states) "The number of parameters and log probabilities must match the number of states."
-    return @set state.states = map(state.states, params, logprobs) do state, param, logprob
-        setparams_and_logprob!!(model, state, param, logprob)
-    end
-end
-
 
 # TODO: Clean this up.
 initparams(model::MultiModel, init_params) = map(Base.Fix1(get_init_params, init_params), 1:length(model.models))
