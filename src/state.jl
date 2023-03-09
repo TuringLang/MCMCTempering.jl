@@ -172,20 +172,22 @@ state_for_process(state::SwapState, I...) = state_for_process(state.states, I...
 state_for_process(proc2state, I...) = proc2state[I...]
 
 """
-    model_for_chain([ordering, ]sampler, model, state, I...)
+    model_for_chain(ordering, sampler, model, state, I...)
 
 Return the model corresponding to the chain indexed by `I...`.
 
-If no `ordering` is specified, [`ordering(sampler)`](@ref) is used.
+`ordering` specifies what sort of order the input models follow.
 """
-model_for_chain(sampler, model, state, I...) = model_for_chain(expected_order(sampler), sampler, model, state, I...)
+function model_for_chain end
 
 """
-    model_for_process(sampler, model, state, I...)
+    model_for_process(ordering, sampler, model, state, I...)
 
 Return the model corresponding to the process indexed by `I...`.
+
+`ordering` specifies what sort of order the input models follow.
 """
-model_for_process(sampler, model, state, I...) = model_for_process(expected_order(sampler), sampler, model, state, I...)
+function model_for_process end
 
 """
     models_by_processes(ordering, models, state)

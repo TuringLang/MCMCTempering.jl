@@ -12,7 +12,6 @@ end
 SwapSampler() = SwapSampler(ReversibleSwap())
 
 swapstrategy(sampler::SwapSampler) = sampler.strategy
-expected_order(::SwapSampler) = ProcessOrder()
 
 # Interaction with the state.
 # NOTE: `SwapSampler` should only every interact with `ProcessOrdering`, so we don't implement `ChainOrdering`.
@@ -180,9 +179,10 @@ function swap_attempt(rng::Random.AbstractRNG, model::MultiModel, sampler::SwapS
     state_i = state_for_chain(state, i)
     state_j = state_for_chain(state, j)
     # Evaluate logdensity for both parameters for each tempered density.
-    # NOTE: Assumes ordering of models is according to processes.
-    model_i = model_for_chain(sampler, model, state, i)
-    model_j = model_for_chain(sampler, model, state, j)
+    # NOTE: `SwapSampler` should only be working with models ordered according to `ProcessOrder`,
+    # never `ChainOrder`, hence why we have the below.
+    model_i = model_for_chain(ProcessOrder(), sampler, model, state, i)
+    model_j = model_for_chain(ProcessOrder(), sampler, model, state, j)
     logπiθi, logπiθj = compute_logdensities(model_i, model_j, state_i, state_j)
     logπjθj, logπjθi = compute_logdensities(model_j, model_i, state_j, state_i)
 
