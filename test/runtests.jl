@@ -46,9 +46,6 @@ function test_and_sample_model(
     progress=false,
     minimum_roundtrips=nothing
 )
-    # NOTE: Every other `step` will perform a swap.
-    num_iterations_tempered = num_iterations
-
     # Make the tempered sampler.
     sampler_tempered = tempered(
         sampler,
@@ -67,7 +64,7 @@ function test_and_sample_model(
 
     # Sample.
     samples_tempered = AbstractMCMC.sample(
-        model, sampler_tempered, num_iterations_tempered;
+        model, sampler_tempered, num_iterations;
         callback=callback, progress=progress, init_params=init_params
     )
 
@@ -147,7 +144,7 @@ function test_and_sample_model(
     end
 
     num_nonswap_steps_taken = length(chain_tempered)
-    @test num_nonswap_steps_taken == (num_iterations_tempered * steps_per_swap)
+    @test num_nonswap_steps_taken == (num_iterations * steps_per_swap)
     @test compare_mean_swap_rate(
         sum(swap_success_indicators),
         (num_nonswap_steps_taken / steps_per_swap) * mean_swap_rate_bound
