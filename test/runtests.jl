@@ -471,4 +471,5 @@ end
     end
 
     include("abstractmcmc.jl")
+    include("simple_gaussian.jl")
 end

@@ -36,6 +36,17 @@ Transition type for tempered samplers.
     process_to_chain
 end
 
+function composition_transition(
+    sampler::CompositionSampler{<:AbstractMCMC.AbstractSampler,<:SwapSampler},
+    swaptransition::SwapTransition,
+    outertransition::MultipleTransitions
+)
+    saveall(sampler) && return CompositionTransition(outertransition, swaptransition)
+    # Otherwise we have to re-order the transitions, since without the `swaptransition` there's
+    # no way to recover the true ordering of the transitions.
+    return MultipleTransitions(sort_by_chain(ProcessOrder(), swaptransition, outertransition.transitions))
+end
+
 # NOTE: This does not have an initial `step`! This is because we need
 # states to work with before we can do anything. Hence it only makes
 # sense to use this sampler in composition with other samplers.
@@ -123,6 +134,9 @@ function AbstractMCMC.step(
     # TODO: Should we re-order the transitions?
     # Currently, one has to re-order the `outertransition` according to `swaptransition`
     # in the `bundle_samples`. Is this the right approach though?
+    # TODO: We should at least re-order transitions in the case where `saveall(sampler) == false`!
+    # In this case, we'll just return the transition without the swap-transition, hence making it
+    # impossible to reconstruct the actual ordering!
     return (
         composition_transition(sampler, swaptransition, outertransition),
         composition_state(sampler, swapstate, outerstate)

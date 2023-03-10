@@ -45,8 +45,67 @@ maybe_wrap_model(model) = implements_logdensity(model) ? AbstractMCMC.LogDensity
 maybe_wrap_model(model::AbstractMCMC.LogDensityModel) = model
 
 # Bundling.
-# TODO: Improve this, somehow.
-# TODO: Move this to an extension.
+# Bundling of non-tempered samples.
+function bundle_nontempered_samples(
+    ts::AbstractVector{<:TemperedTransition{<:SwapTransition,<:MultipleTransitions}},
+    model::AbstractMCMC.AbstractModel,
+    sampler::TemperedSampler,
+    state::TemperedState,
+    ::Type{T};
+    kwargs...
+) where {T}
+    # Create the same model and sampler as we do in the initial step for `TemperedSampler`.
+    multimodel = MultiModel([
+        make_tempered_model(sampler, model, sampler.chain_to_beta[i])
+        for i in 1:numtemps(sampler)
+    ])
+    multisampler = MultiSampler([getsampler(sampler, i) for i in 1:numtemps(sampler)])
+    multitransitions = [
+        MultipleTransitions(sort_by_chain(ProcessOrder(), t.swaptransition, t.transition.transitions))
+        for t in ts
+    ]
+
+    return AbstractMCMC.bundle_samples(
+        multitransitions,
+        multimodel,
+        multisampler,
+        MultipleStates(sort_by_chain(ProcessOrder(), state.swapstate, state.state.states)),
+        T
+    )
+end
+
+function AbstractMCMC.bundle_samples(
+    ts::Vector{<:MultipleTransitions},
+    model::MultiModel,
+    sampler::MultiSampler,
+    state::MultipleStates,
+    # TODO: Generalize for any eltype `T`? Then need to overload for `Real`, etc.?
+    ::Type{Vector{MCMCChains.Chains}};
+    kwargs...
+)
+    return map(1:length(model), model.models, sampler.samplers, state.states) do i, model, sampler, state
+        AbstractMCMC.bundle_samples([t.transitions[i] for t in ts], model, sampler, state, MCMCChains.Chains; kwargs...)
+    end
+end
+
+# HACK: https://github.com/TuringLang/AbstractMCMC.jl/issues/118
+function AbstractMCMC.bundle_samples(
+    ts::Vector{<:TemperedTransition{<:SwapTransition,<:MultipleTransitions}},
+    model::AbstractMCMC.AbstractModel,
+    sampler::TemperedSampler,
+    state::TemperedState,
+    ::Type{Vector{T}};
+    bundle_resolve_swaps::Bool=false,
+    kwargs...
+) where {T}
+    if bundle_resolve_swaps
+        return bundle_nontempered_samples(ts, model, sampler, state, Vector{T}; kwargs...)
+    end
+
+    # TODO: Do better?
+    return ts
+end
+
 function AbstractMCMC.bundle_samples(
     ts::AbstractVector{<:TemperedTransition{<:SwapTransition,<:MultipleTransitions}},
     model::AbstractMCMC.AbstractModel,
@@ -72,27 +131,85 @@ function AbstractMCMC.bundle_samples(
     model::AbstractMCMC.AbstractModel,
     sampler::CompositionSampler,
     state::CompositionState,
-    ::Type{MCMCChains.Chains};
+    ::Type{T};
     kwargs...
-)
+) where {T}
+    # In the case of `!saveall(sampler)`, the state is not a `CompositionTransition` so we just propagate
+    # the transitions to the `bundle_samples` for the outer stuff. Otherwise, we flatten the transitions.
+    ts_actual = saveall(sampler) ? mapreduce(t -> [inner_transition(t), outer_transition(t)], vcat, ts) : ts
+    # TODO: Should we really always default to outer sampler?
     return AbstractMCMC.bundle_samples(
-        ts, model, sampler.sampler_outer, state.state_outer, MCMCChains.Chains;
+        ts_actual, model, sampler.sampler_outer, state.state_outer, T;
         kwargs...
     )
 end
 
-# Unflatten in the case of `SequentialTransitions`
+# HACK: https://github.com/TuringLang/AbstractMCMC.jl/issues/118
 function AbstractMCMC.bundle_samples(
-    ts::AbstractVector{<:SequentialTransitions},
+    ts::Vector,
     model::AbstractMCMC.AbstractModel,
     sampler::CompositionSampler,
-    state::SequentialStates,
-    ::Type{MCMCChains.Chains};
+    state::CompositionState,
+    ::Type{Vector{T}};
     kwargs...
-)
-    ts_actual = [t for tseq in ts for t in tseq.transitions]
+) where {T}
+    if !saveall(sampler)
+        # In this case, we just use the `outer` for everything since this is the only
+        # transitions we're keeping around.
+        return AbstractMCMC.bundle_samples(
+            ts, model, sampler.sampler_outer, state.state_outer, Vector{T};
+            kwargs...
+        )
+    end
+
+    # Otherwise, we don't know what to do.
+    return ts
+end
+
+function AbstractMCMC.bundle_samples(
+    ts::AbstractVector{<:CompositionTransition{<:MultipleTransitions,<:SwapTransition}},
+    model::AbstractMCMC.AbstractModel,
+    sampler::CompositionSampler{<:MultiSampler,<:SwapSampler},
+    state::CompositionState{<:MultipleStates,<:SwapState},
+    ::Type{T};
+    bundle_resolve_swaps::Bool=false,
+    kwargs...
+) where {T}
+    !bundle_resolve_swaps && return ts
+
+    # Resolve the swaps.
+    sampler_without_saveall = @set sampler.sampler_inner.saveall = Val(false)
+    ts_actual = map(ts) do t
+        composition_transition(sampler_without_saveall, inner_transition(t), outer_transition(t))
+    end
+
+    AbstractMCMC.bundle_samples(
+        ts_actual, model, sampler.sampler_outer, state.state_outer, T;
+        kwargs...
+    )
+end
+
+# HACK: https://github.com/TuringLang/AbstractMCMC.jl/issues/118
+function AbstractMCMC.bundle_samples(
+    ts::Vector{<:CompositionTransition{<:MultipleTransitions,<:SwapTransition}},
+    model::AbstractMCMC.AbstractModel,
+    sampler::CompositionSampler{<:MultiSampler,<:SwapSampler},
+    state::CompositionState{<:MultipleStates,<:SwapState},
+    ::Type{Vector{T}};
+    bundle_resolve_swaps::Bool=false,
+    kwargs...
+) where {T}
+    !bundle_resolve_swaps && return ts
+
+    # Resolve the swaps (using the already implemented resolution in `composition_transition`
+    # for this particular sampler but without `saveall`).
+    sampler_without_saveall = @set sampler.saveall = Val(false)
+    ts_actual = map(ts) do t
+        composition_transition(sampler_without_saveall, inner_transition(t), outer_transition(t))
+    end
+
     return AbstractMCMC.bundle_samples(
-        ts_actual, model, sampler.sampler_outer, state.states[end], MCMCChains.Chains;
+        ts_actual, model, sampler.sampler_outer, state.state_outer, Vector{T};
         kwargs...
     )
 end

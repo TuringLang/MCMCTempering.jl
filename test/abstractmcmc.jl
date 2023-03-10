@@ -19,11 +19,7 @@
             state_initial,
         )
 
-        if MCMCTempering.saveall(spl_composed)
-            @test state_composed_initial isa MCMCTempering.SequentialStates
-        else
-            @test state_composed_initial isa MCMCTempering.CompositionState
-        end
+        @test state_composed_initial isa MCMCTempering.CompositionState
 
         # Take two steps with `spl`.
         rng = Random.MersenneTwister(42)
@@ -42,11 +38,9 @@
 
             # Make sure the state types stay consistent.
             if MCMCTempering.saveall(spl_composed)
-                @test transition isa MCMCTempering.SequentialTransitions
-                @test state_composed isa MCMCTempering.SequentialStates
-            else
-                @test state_composed isa MCMCTempering.CompositionState
+                @test transition isa MCMCTempering.CompositionTransition
             end
+            @test state_composed isa MCMCTempering.CompositionState
         end
         params_composed, logp_composed = MCMCTempering.getparams_and_logprob(logdensity_model, state_composed)
 
@@ -62,6 +56,7 @@
         )
 
         # Should be the same length because the `SequentialTransitions` will be unflattened.
+        @test chain_composed isa MCMCChains.Chains
         @test length(chain_composed) == length(chain)
     end
 

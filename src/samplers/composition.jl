@@ -58,6 +58,13 @@ function setparams_and_logprob!!(model, state::CompositionState, params, logprob
     return @set state.state_outer = setparams_and_logprob!!(model, state.state_outer, params, logprob)
 end
 
+struct CompositionTransition{S1,S2}
+    "The outer transition"
+    transition_outer::S1
+    "The inner transition"
+    transition_inner::S2
+end
+
 # Useful functions for interacting with composition sampler and states.
 inner_sampler(sampler::CompositionSampler) = sampler.sampler_inner
 outer_sampler(sampler::CompositionSampler) = sampler.sampler_outer
@@ -65,24 +72,15 @@ outer_sampler(sampler::CompositionSampler) = sampler.sampler_outer
 inner_state(state::CompositionState) = state.state_inner
 outer_state(state::CompositionState) = state.state_outer
 
-inner_state(state::SequentialStates) = first(state.states)
-outer_state(state::SequentialStates) = last(state.states)
-
-inner_transition(transition::SequentialTransitions) = first(transition.transitions)
-outer_transition(transition::SequentialTransitions) = last(transition.transitions)
-outer_transition(transition) = transition
+inner_transition(transition::CompositionTransition) = transition.transition_inner
+outer_transition(transition::CompositionTransition) = transition.transition_outer
+outer_transition(transition) = transition  # in case we don't have `saveall`
 
 # TODO: We really don't need to use `SequentialStates` here, do we?
-function composition_state(sampler, state_inner, state_outer)
-    return if saveall(sampler)
-        SequentialStates((state_inner, state_outer))
-    else
-        CompositionState(state_outer, state_inner)
-    end
-end
+composition_state(sampler, state_inner, state_outer) = CompositionState(state_outer, state_inner)
 function composition_transition(sampler, transition_inner, transition_outer)
     return if saveall(sampler)
-        SequentialTransitions((transition_inner, transition_outer))
+        CompositionTransition(transition_outer, transition_inner)
     else
         transition_outer
     end
