@@ -98,8 +98,10 @@ function SwapState(state::MultipleStates)
 end
 
 # Defer these to `MultipleStates`.
-getparams_and_logprob(state::SwapState) = getparams_and_logprob(MultipleStates(state.states))
-getparams_and_logprob(model, state::SwapState) = getparams_and_logprob(model, MultipleStates(state.states))
+# TODO: What is the best way to implement these? Should we sort according to the chain indices
+# to match the order of the models?
+# getparams_and_logprob(state::SwapState) = getparams_and_logprob(MultipleStates(state.states))
+# getparams_and_logprob(model, state::SwapState) = getparams_and_logprob(model, MultipleStates(state.states))
 
 function setparams_and_logprob!!(model, state::SwapState, params, logprobs)
     # Use the `MultipleStates`'s implementation to update the underlying states.

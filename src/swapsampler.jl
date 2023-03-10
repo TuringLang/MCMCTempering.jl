@@ -109,12 +109,14 @@ function AbstractMCMC.step(
     # Re-order the models AGAIN, since we might have swapped some.
     @set! model.models = models_by_processes(ChainOrder(), chain2models, swapstate)
 
-    # Create the current state from `outerstate_prev` and `swapstate`, and `step` for `outersampler`.
+    # Create the current state from `outerstate_prev` and `swapstate`, and `step` for `outersampler`.`
     outertransition, outerstate = AbstractMCMC.step(
-        # TODO: Do we really need this `state_from` here? `swapstate` shouldn't be changing the
-        # parameters + `outerstate_prev` and `swapstate` are both sorted according to processes,
-        # hence a `swap` doesn't matter here (and is accounted for by swapping the `models` above).
-        rng, model, outersampler, state_from(model, outerstate_prev, swapstate);
+        # HACK: We really need the `state_from` here despite the fact that `SwapSampler` does note
+        # change the `swapstates.states` itself, but we might require a re-computation of certain
+        # quantities from the `model`, which has now potentially been re-ordered (see above).
+        # NOTE: We do NOT do `state_from(model, outerstate_prev, swapstate)` because as of now,
+        # `swapstate` does not implement `getparams_and_logprob`.
+        rng, model, outersampler, state_from(model, outerstate_prev, outerstate_prev);
         kwargs...
     )
 
