@@ -6,6 +6,8 @@
 
     init_params = zeros(length(μ))
 
+    n_samples = 100_000
+
     function test_chains(chains)
         means = map(mean ∘ Array, chains)
         variances = map(var ∘ Array, chains)
@@ -25,7 +27,7 @@
     # Sample.
     @testset "TemperedSampler" begin
         chains_tempered = sample(
-            DistributionLogDensity(tempered_dists[1]), rwmh_tempered, 10_000;
+            DistributionLogDensity(tempered_dists[1]), rwmh_tempered, n_samples;
             init_params,
             bundle_resolve_swaps=true,
             chain_type=Vector{MCMCChains.Chains},
@@ -36,7 +38,7 @@
 
     @testset "MultiSampler without swapping" begin
         chains_product = sample(
-            tempered_multimodel, rwmh_product, 10_000;
+            tempered_multimodel, rwmh_product, n_samples;
             init_params,
             chain_type=Vector{MCMCChains.Chains},
             progress=false
@@ -46,7 +48,7 @@
 
     @testset "MultiSampler with swapping (saveall=true)" begin
         chains_product = sample(
-            tempered_multimodel, rwmh_product_with_swap, 10_000;
+            tempered_multimodel, rwmh_product_with_swap, n_samples;
             init_params,
             bundle_resolve_swaps=true,
             chain_type=Vector{MCMCChains.Chains},
@@ -57,7 +59,7 @@
 
     @testset "MultiSampler with swapping (saveall=true)" begin
         chains_product = sample(
-            tempered_multimodel, Setfield.@set(rwmh_product_with_swap.saveall = Val(false)), 10_000;
+            tempered_multimodel, Setfield.@set(rwmh_product_with_swap.saveall = Val(false)), n_samples;
             init_params,
             chain_type=Vector{MCMCChains.Chains},
             progress=false
