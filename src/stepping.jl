@@ -17,8 +17,6 @@ function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model::AbstractMCMC.AbstractModel,
     sampler::TemperedSampler;
-    N_burnin::Integer=0,
-    burnin_progress::Bool=AbstractMCMC.PROGRESS[],
     kwargs...
 )
     # Create a `MultiSampler` and `MultiModel`.
@@ -28,27 +26,6 @@ function AbstractMCMC.step(
     ])
     multisampler = MultiSampler([getsampler(sampler, i) for i in 1:numtemps(sampler)])
     multistate = last(AbstractMCMC.step(rng, multimodel, multisampler; kwargs...))
-
-    # TODO: Move this to AbstractMCMC. Or better, add to AbstractMCMC a way to
-    # specify a callback to be used for the `discard_initial`.
-    if N_burnin > 0
-        AbstractMCMC.@ifwithprogresslogger burnin_progress name = "Burn-in" begin
-            # Determine threshold values for progress logging
-            # (one update per 0.5% of progress)
-            if burnin_progress
-                threshold = N_burnin ÷ 200
-                next_update = threshold
-            end
-
-            for i in 1:N_burnin
-                if burnin_progress && i >= next_update
-                    ProgressLogging.@logprogress i / N_burnin
-                    next_update = i + threshold
-                end
-                multistate = last(AbstractMCMC.step(rng, multimodel, multisampler, multistate; kwargs...))
-            end
-        end
-    end
 
     # Make sure to collect, because we'll be using `setindex!(!)` later.
     process_to_chain = collect(1:length(sampler.chain_to_beta))
