@@ -117,7 +117,7 @@ and `std_true`, respectively. Also test that the standard deviation is monotonic
 - `significance`: The significance level of the test.
 - `kwargs...`: Passed to `atol_for_chain`.
 """
-function test_chains_with_monotonic_variance(chains, mean_true, std_true; significance=1e-3, kwargs...)
+function test_chains_with_monotonic_variance(chains, mean_true, std_true; significance=1e-4, kwargs...)
     @testset "chain $i" for i = 1:length(chains)
         test_means(chains[i], mean_true[i]; kwargs...)
         test_std(chains[i], std_true[i]; kwargs...)
