@@ -22,6 +22,12 @@ AbstractMCMC.step(rng, multimodel, multisampler ∘ swapsampler, state; kwargs..
 
 which in this case is provided by repeated calls to [`MCMCTempering.make_tempered_model`](@ref).
 
+```@docs
+MCMCTempering.make_tempered_model
+```
+
+This should be overloaded if you have some custom model-type that does not support the LogDensityProblems.jl-interface.
+
 ## Swapping
 
 Swapping is implemented using the somewhat special [`MCMCTempering.SwapSampler`](@ref)
@@ -31,7 +37,8 @@ MCMCTempering.SwapSampler
 MCMCTempering.swapstrategy
 ```
 
-This is a rather special sampler because, unlike most other implementations of `AbstractMCMC.AbstractSampler`, this is not a valid sampler _on its own_; indeed it is _required_ that this is at least in a composition (see [`MCMCTempering.CompositionSampler`](@ref)) with some other sampler.
+!!! warning 
+    This is a rather special sampler because, unlike most other implementations of `AbstractMCMC.AbstractSampler`, this is not a valid sampler _on its own_; for this to be sensible it needs to be part of composition (see [`MCMCTempering.CompositionSampler`](@ref)) with _at least_ one other type of (an actually valid) sampler.
 
 ### Different swap-strategies
 
@@ -86,6 +93,11 @@ MCMCTempering.SequentialTransitions
 MCMCTempering.SequentialStates
 ```
 
+This effectively allows you to specify whether or not the "intermediate" states should be kept or not.
+
+!!! note
+    You will rarely see [`MCMCTempering.SequentialTransitions`](@ref) and [`MCMCTempering.SequentialStates`](@ref) as a user because `AbstractMCMC.bundle_samples` has been overloaded to these to return the flattened representation, i.e. we "un-roll" the transitions in every [`MCMCTempering.SequentialTransitions`](@ref).
+
 ### Multiple or product of samplers
 
 ```@docs
@@ -98,6 +110,9 @@ where the tempered models are represented using a [`MCMCTempering.MultiModel`](@
 MCMCTempering.MultiModel
 ```
 
+The `step` for a [`MCMCTempering.MultiSampler`](@ref) and a [`MCMCTempering.MultiModel`] is a transition of type [`MCMCTempering.MultipleTransitions`](@ref) and a state of type [`MCMCTempering.MultipleStates`](@ref)
+
 ```@docs
-MCMCTempering.make_tempered_model
+MCMCTempering.MultipleTransitions
+MCMCTempering.MultipleStates
 ```
