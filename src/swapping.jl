@@ -117,7 +117,7 @@ function compute_logdensities(
     # TODO: Make use of `getparams_and_logprob` instead? At least for the `(model, state)` pair?
     return (
         logdensity(model, getparams(model, state)),
-        logdensity(model, getparams(model_other, state_other))
+        logdensity(model, getparams(model, state_other))
     )
 end
 
