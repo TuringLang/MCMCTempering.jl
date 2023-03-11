@@ -14,7 +14,6 @@ Stochastically attempt either even- or odd-indexed swap moves between chains.
 
 See [^SYED19] for more on this approach, referred to as SEO in their paper.
 
-# References
 [^SYED19]: Syed, S., Bouchard-Côté, Alexandre, Deligiannidis, G., & Doucet, A., Non-reversible Parallel Tempering: A Scalable Highly Parallel MCMC Scheme, arXiv:1905.02939,  (2019).
 """
 struct ReversibleSwap <: AbstractSwapStrategy end
@@ -29,7 +28,6 @@ swaps between neighbors.
 
 See [^SYED19] for more on this approach, referred to as DEO in their paper.
 
-# References
 [^SYED19]: Syed, S., Bouchard-Côté, Alexandre, Deligiannidis, G., & Doucet, A., Non-reversible Parallel Tempering: A Scalable Highly Parallel MCMC Scheme, arXiv:1905.02939,  (2019).
 """
 struct NonReversibleSwap <: AbstractSwapStrategy end
@@ -43,7 +41,6 @@ At every swap step taken, this strategy samples a single chain index
 This approach goes under a number of names, e.g. Parallel Tempering
 (PT) MCMC and Replica-Exchange MCMC.[^PTPH05]
 
-# References
 [^PTPH05]: Earl, D. J., & Deem, M. W., Parallel tempering: theory, applications, and new perspectives, Physical Chemistry Chemical Physics, 7(23), 3910–3916 (2005).
 """
 struct SingleSwap <: AbstractSwapStrategy end
@@ -56,7 +53,6 @@ At every swap step taken, this strategy samples two chain indices
 
 This approach is shown to be effective for certain models in [^1].
 
-# References
 [^1]: Malcolm Sambridge, A Parallel Tempering algorithm for probabilistic sampling and multimodal optimization, Geophysical Journal International, Volume 196, Issue 1, January 2014, Pages 357–374, https://doi.org/10.1093/gji/ggt342
 """
 struct SingleRandomSwap <: AbstractSwapStrategy end
