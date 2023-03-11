@@ -19,7 +19,7 @@ See also: [`AdaptiveState`](@ref), [`update_inverse_temperatures`](@ref), and
 """
 struct Geometric end
 
-defaultscale(::Geometric, Δ) = eltype(Δ)(0.9)
+defaultscale(::Geometric, Δ) = float(eltype(Δ))(0.9)
 
 """
     InverselyAdditive

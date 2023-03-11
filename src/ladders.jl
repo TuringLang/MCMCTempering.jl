@@ -37,9 +37,7 @@ end
 Checks and returns a sorted `Δ` containing `{β₀, ..., βₙ}` conforming such that `1 = β₀ > β₁ > ... > βₙ ≥ 0`
 """
 function check_inverse_temperatures(Δ)
-    if length(Δ) <= 1
-        error("More than one inverse temperatures must be provided.")
-    end
+    !isempty(Δ) || error("Inverse temperatures array is empty.")
     if !all(zero.(Δ) .≤ Δ .≤ one.(Δ))
         error("The temperature ladder provided has values outside of the acceptable range, ensure all values are in [0, 1].")
     end
