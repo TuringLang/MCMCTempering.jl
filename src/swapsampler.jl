@@ -11,6 +11,11 @@ end
 
 SwapSampler() = SwapSampler(ReversibleSwap())
 
+"""
+    swapstrategy(sampler::SwapSampler)
+
+Return the swap-strategy used by `sampler`.
+"""
 swapstrategy(sampler::SwapSampler) = sampler.strategy
 
 # Interaction with the state.

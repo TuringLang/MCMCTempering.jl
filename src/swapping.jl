@@ -97,26 +97,28 @@ end
 
 
 """
-    compute_tempered_logdensities(model, sampler, transition, transition_other, β)
-    compute_tempered_logdensities(model, sampler, sampler_other, transition, transition_other, state, state_other, β, β_other)
+    compute_logdensities(model[, model_other], state, state_other)
 
-Return `(logπ(transition, β), logπ(transition_other, β))` where `logπ(x, β)` denotes the
-log-density for `model` with inverse-temperature `β`.
+Return `(logdensity(model, state), logdensity(model, state_other))`.
 
-The default implementation extracts the parameters from the transitions using [`getparams`](@ref) 
-and calls [`logdensity`](@ref) on the model returned from [`make_tempered_model`](@ref).
+The default implementation extracts the parameters from the transitions using [`getparams`](@ref).
+
+`model_other` can be provided to allow specializations that might be more efficient
+if we know that `state_other` is from `model_other`, e.g. in the case where the log-probability
+field is already present in `state` and `state_other`, and the only difference between
+`logdensity(model, state_other)` and `logdensity(model_other, state_other)` is an easily computable
+factor, then this can be exploited instead of re-computing the log-densities for both.
 """
-function compute_tempered_logdensities(model, sampler, transition, transition_other, β)
-    tempered_model = make_tempered_model(sampler, model, β)
-    return (
-        logdensity(tempered_model, getparams(tempered_model, transition)),
-        logdensity(tempered_model, getparams(tempered_model, transition_other))
-    )
-end
-function compute_tempered_logdensities(
-    model, sampler, sampler_other, transition, transition_other, state, state_other, β, β_other
+function compute_logdensities(
+    model::AbstractMCMC.AbstractModel,
+    state,
+    state_other,
 )
-    return compute_tempered_logdensities(model, sampler, transition, transition_other, β)
+    # TODO: Make use of `getparams_and_logprob` instead? At least for the `(model, state)` pair?
+    return (
+        logdensity(model, getparams(model, state)),
+        logdensity(model, getparams(model_other, state_other))
+    )
 end
 
 function compute_logdensities(
@@ -125,11 +127,7 @@ function compute_logdensities(
     state,
     state_other,
 )
-    # TODO: Make use of `getparams_and_logprob` instead?
-    return (
-        logdensity(model, getparams(model, state)),
-        logdensity(model, getparams(model_other, state_other))
-    )
+    return compute_logdensities(model, state, state_other)
 end
 
 """

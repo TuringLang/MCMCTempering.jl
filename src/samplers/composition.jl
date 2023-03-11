@@ -36,7 +36,7 @@ saveall(::CompositionSampler{<:Any,<:Any,Val{SaveAll}}) where {SaveAll} = SaveAl
 """
     CompositionState
 
-A `CompositionState` is a container for a sequence of states.
+Wrapper around the inner and outer states obtained from a [`CompositionSampler`](@ref).
 
 # Fields
 $(FIELDS)
@@ -58,6 +58,14 @@ function setparams_and_logprob!!(model, state::CompositionState, params, logprob
     return @set state.state_outer = setparams_and_logprob!!(model, state.state_outer, params, logprob)
 end
 
+"""
+    CompositionTransition
+
+Wrapper around the inner and outer transitions obtained from a [`CompositionSampler`](@ref).
+
+# Fields
+$(FIELDS)
+"""
 struct CompositionTransition{S1,S2}
     "The outer transition"
     transition_outer::S1
