@@ -79,11 +79,11 @@ this overrides and disables all swapping functionality.
 struct NoSwap <: AbstractSwapStrategy end
 
 """
-    swap_betas!(chain_to_process, process_to_chain, i, j)
+    swap!(chain_to_process, process_to_chain, i, j)
 
 Swaps the `i`th and `j`th temperatures in place.
 """
-function swap_betas!(chain_to_process, process_to_chain, i, j)
+function swap!(chain_to_process, process_to_chain, i, j)
     # TODO: Use BangBang's `@set!!` to also support tuples?
     # Extract the process index for each of the chains.
     process_for_chain_i, process_for_chain_j = chain_to_process[i], chain_to_process[j]
@@ -123,6 +123,19 @@ function compute_tempered_logdensities(
     return compute_tempered_logdensities(model, sampler, transition, transition_other, β)
 end
 
+function compute_logdensities(
+    model::AbstractMCMC.AbstractModel,
+    model_other::AbstractMCMC.AbstractModel,
+    state,
+    state_other,
+)
+    # TODO: Make use of `getparams_and_logprob` instead?
+    return (
+        logdensity(model, getparams(model, state)),
+        logdensity(model, getparams(model_other, state_other))
+    )
+end
+
 """
     swap_acceptance_pt(logπi, logπj)
 
@@ -134,50 +147,3 @@ function swap_acceptance_pt(logπiθi, logπiθj, logπjθi, logπjθj)
     return (logπjθi + logπiθj) - (logπiθi + logπjθj)
 end
 
-
-"""
-    swap_attempt(rng, model, sampler, state, i, j)
-
-Attempt to swap the temperatures of two chains by tempering the densities and
-calculating the swap acceptance ratio; then swapping if it is accepted.
-"""
-function swap_attempt(rng, model, sampler, state, i, j, adapt)
-    # Extract the relevant transitions.
-    sampler_i = sampler_for_chain(sampler, state, i)
-    sampler_j = sampler_for_chain(sampler, state, j)
-    transition_i = transition_for_chain(state, i)
-    transition_j = transition_for_chain(state, j)
-    state_i = state_for_chain(state, i)
-    state_j = state_for_chain(state, j)
-    β_i = beta_for_chain(state, i)
-    β_j = beta_for_chain(state, j)
-    # Evaluate logdensity for both parameters for each tempered density.
-    logπiθi, logπiθj = compute_tempered_logdensities(
-        model, sampler_i, sampler_j, transition_i, transition_j, state_i, state_j, β_i, β_j
-    )
-    logπjθj, logπjθi = compute_tempered_logdensities(
-        model, sampler_j, sampler_i, transition_j, transition_i, state_j, state_i, β_j, β_i
-    )
-    
-    # If the proposed temperature swap is accepted according `logα`,
-    # swap the temperatures for future steps.
-    logα = swap_acceptance_pt(logπiθi, logπiθj, logπjθi, logπjθj)
-    should_swap = -Random.randexp(rng) ≤ logα
-    if should_swap
-        swap_betas!(state.chain_to_process, state.process_to_chain, i, j)
-    end
-
-    # Keep track of the (log) acceptance ratios.
-    state.swap_acceptance_ratios[i] = logα
-
-    # Adaptation steps affects `ρs` and `inverse_temperatures`, as the `ρs` is
-    # adapted before a new `inverse_temperatures` is generated and returned.
-    if adapt
-        ρs = adapt!!(
-            state.adaptation_states, state.chain_to_beta, i, min(one(logα), exp(logα))
-        )
-        @set! state.adaptation_states = ρs
-        @set! state.chain_to_beta = update_inverse_temperatures(ρs, state.chain_to_beta)
-    end
-    return state
-end

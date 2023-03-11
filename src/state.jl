@@ -1,5 +1,19 @@
 """
-    TemperedState
+    ProcessOrder
+
+Specifies that the `model` should be treated as process-ordered.
+"""
+struct ProcessOrder end
+
+"""
+    ChainOrder
+
+Specifies that the `model` should be treated as chain-ordered.
+"""
+struct ChainOrder end
+
+"""
+    SwapState
 
 A general implementation of a state for a [`TemperedSampler`](@ref).
 
@@ -17,7 +31,7 @@ Moreover, suppose we also have 4 workers/processes for which we run these chains
 (can also be serial wlog).
 
 We can then perform a swap in two different ways:
-1. Swap the the _states_ between each process, i.e. permute `transitions_and_states`.
+1. Swap the the _states_ between each process, i.e. permute `transitions` and `states`.
 2. Swap the _temperatures_ between each process, i.e. permute `chain_to_beta`.
 
 (1) is possibly the most intuitive approach since it means that the i-th worker/process
@@ -52,72 +66,87 @@ Chains:    process_to_chain    chain_to_process   inverse_temperatures[process_t
 In this case, the chain `X` can be reconstructed as:
 
 ```julia
-X[1] = states[1].transitions_and_states[1]
-X[2] = states[2].transitions_and_states[2]
-X[3] = states[3].transitions_and_states[2]
-X[4] = states[4].transitions_and_states[3]
-X[5] = states[5].transitions_and_states[3]
+X[1] = states[1].states[1]
+X[2] = states[2].states[2]
+X[3] = states[3].states[2]
+X[4] = states[4].states[3]
+X[5] = states[5].states[3]
 ```
+
+and similarly for the states.
 
 The indices here are exactly those represented by `states[k].chain_to_process[1]`.
 """
-@concrete struct TemperedState
-    "collection of `(transition, state)` pairs for each process"
-    transitions_and_states
-    "collection of (inverse) temperatures β corresponding to each chain"
-    chain_to_beta
+@concrete struct SwapState
+    "collection of states for each process"
+    states
     "collection indices such that `chain_to_process[i] = j` if the j-th process corresponds to the i-th chain"
     chain_to_process
     "collection indices such that `process_chain_to[j] = i` if the i-th chain corresponds to the j-th process"
     process_to_chain
     "total number of steps taken"
     total_steps
-    "number of burn-in steps taken"
-    burnin_steps
-    "contains all necessary information for adaptation of inverse_temperatures"
-    adaptation_states
-    "flag which specifies wether this was a swap-step or not"
-    is_swap
     "swap acceptance ratios on log-scale"
     swap_acceptance_ratios
 end
+
+# TODO: Can we support more?
+function SwapState(state::MultipleStates)
+    process_to_chain = collect(1:length(state.states))
+    chain_to_process = copy(process_to_chain)
+    return SwapState(state.states, chain_to_process, process_to_chain, 1, Dict{Int,Float64}())
+end
+
+# Defer these to `MultipleStates`.
+# TODO: What is the best way to implement these? Should we sort according to the chain indices
+# to match the order of the models?
+# getparams_and_logprob(state::SwapState) = getparams_and_logprob(MultipleStates(state.states))
+# getparams_and_logprob(model, state::SwapState) = getparams_and_logprob(model, MultipleStates(state.states))
+
+function setparams_and_logprob!!(model, state::SwapState, params, logprobs)
+    # Use the `MultipleStates`'s implementation to update the underlying states.
+    multistate = setparams_and_logprob!!(model, MultipleStates(state.states), params, logprobs)
+    # Update the states!
+    return @set state.states = multistate.states
+end
+
+"""
+    sort_by_chain(::ChainOrdering, state, xs)
+    sort_by_chain(::ProcessOrdering, state, xs)
+
+Return `xs` sorted according to the chain indices, as specified by `state`.
+"""
+sort_by_chain(::ChainOrder, ::Any, xs) = xs
+sort_by_chain(::ProcessOrder, state, xs) = [xs[chain_to_process(state, i)] for i = 1:length(xs)]
+sort_by_chain(::ProcessOrder, state, xs::Tuple) = ntuple(i -> xs[chain_to_process(state, i)], length(xs))
+
+"""
+    sort_by_process(::ProcessOrdering, state, xs)
+    sort_by_process(::ChainOrdering, state, xs)
+
+Return `xs` sorted according to the process indices, as specified by `state`.
+"""
+sort_by_process(::ProcessOrder, ::Any, xs) = xs
+sort_by_process(::ChainOrder, state, xs) = [xs[process_to_chain(state, i)] for i = 1:length(xs)]
+sort_by_process(::ChainOrder, state, xs::Tuple) = ntuple(i -> xs[process_to_chain(state, i)], length(xs))
 
 """
     process_to_chain(state, I...)
 
 Return the chain index corresponding to the process index `I`.
 """
-process_to_chain(state::TemperedState, I...) = process_to_chain(state.process_to_chain, I...)
+process_to_chain(state::SwapState, I...) = process_to_chain(state.process_to_chain, I...)
 # NOTE: Array impl. is useful for testing.
-process_to_chain(proc2chain::AbstractArray, I...) = proc2chain[I...]
+process_to_chain(proc2chain, I...) = proc2chain[I...]
 
 """
     chain_to_process(state, I...)
 
 Return the process index corresponding to the chain index `I`.
 """
-chain_to_process(state::TemperedState, I...) = chain_to_process(state.chain_to_process, I...)
+chain_to_process(state::SwapState, I...) = chain_to_process(state.chain_to_process, I...)
 # NOTE: Array impl. is useful for testing.
-chain_to_process(chain2proc::AbstractArray, I...) = chain2proc[I...]
-
-"""
-    transition_for_chain(state[, I...])
-
-Return the transition corresponding to the chain indexed by `I...`.
-If `I...` is not specified, the transition corresponding to `β=1.0` will be returned, i.e. `I = (1, )`.
-"""
-transition_for_chain(state::TemperedState) = transition_for_chain(state, 1)
-transition_for_chain(state::TemperedState, I...) = transition_for_process(state, chain_to_process(state, I...))
-
-"""
-    transition_for_process(state, I...)
-
-Return the transition corresponding to the process indexed by `I...`.
-"""
-transition_for_process(state::TemperedState, I...) = state.transitions_and_states[I...][1]
-function transition_for_process(state::TemperedState{<:Tuple{<:MultipleTransitions,<:MultipleStates}}, I...)
-    return state.transitions_and_states[1].transitions[I...]
-end
+chain_to_process(chain2proc, I...) = chain2proc[I...]
 
 """
     state_for_chain(state[, I...])
@@ -125,72 +154,49 @@ end
 Return the state corresponding to the chain indexed by `I...`.
 If `I...` is not specified, the state corresponding to `β=1.0` will be returned.
 """
-state_for_chain(state::TemperedState) = state_for_chain(state, 1)
-state_for_chain(state::TemperedState, I...) = state_for_process(state, chain_to_process(state, I...))
+state_for_chain(state) = state_for_chain(state, 1)
+state_for_chain(state, I...) = state_for_process(state, chain_to_process(state, I...))
 
 """
     state_for_process(state, I...)
 
 Return the state corresponding to the process indexed by `I...`.
 """
-state_for_process(state::TemperedState, I...) = state.transitions_and_states[I...][2]
-function state_for_process(state::TemperedState{<:Tuple{<:MultipleTransitions,<:MultipleStates}}, I...)
-    return state.transitions_and_states[2].states[I...]
-end
+state_for_process(state::SwapState, I...) = state_for_process(state.states, I...)
+state_for_process(proc2state, I...) = proc2state[I...]
 
 """
-    beta_for_chain(state[, I...])
-
-Return the β corresponding to the chain indexed by `I...`.
-If `I...` is not specified, the β corresponding to `β=1.0` will be returned.
-"""
-beta_for_chain(state::TemperedState) = beta_for_chain(state, 1)
-beta_for_chain(state::TemperedState, I...) = beta_for_chain(state.chain_to_beta, I...)
-# NOTE: Array impl. is useful for testing.
-beta_for_chain(chain_to_beta::AbstractArray, I...) = chain_to_beta[I...]
-
-"""
-    beta_for_process(state, I...)
-
-Return the β corresponding to the process indexed by `I...`.
-"""
-beta_for_process(state::TemperedState, I...) = beta_for_process(state.chain_to_beta, state.process_to_chain, I...)
-# NOTE: Array impl. is useful for testing.
-function beta_for_process(chain_to_beta::AbstractArray, proc2chain::AbstractArray, I...)
-    return beta_for_chain(chain_to_beta, process_to_chain(proc2chain, I...))
-end
-
-"""
-    model_for_chain(sampler, model, state, I...)
+    model_for_chain(ordering, sampler, model, state, I...)
 
 Return the model corresponding to the chain indexed by `I...`.
+
+`ordering` specifies what sort of order the input models follow.
 """
-function model_for_chain(sampler, model, state, I...)
-    return make_tempered_model(sampler, model, beta_for_chain(state, I...))
-end
+function model_for_chain end
 
 """
-    model_for_process(sampler, model, state, I...)
+    model_for_process(ordering, sampler, model, state, I...)
 
 Return the model corresponding to the process indexed by `I...`.
+
+`ordering` specifies what sort of order the input models follow.
 """
-function model_for_process(sampler, model, state, I...)
-    return make_tempered_model(sampler, model, beta_for_process(state, I...))
-end
-
+function model_for_process end
 
 """
-    TemperedTransition
+    models_by_processes(ordering, models, state)
 
-Transition type for tempered samplers.
+Return the models in the order of processes, assuming `models` is sorted according to `ordering`.
+
+See also: [`ProcessOrdering`](@ref), [`ChainOrdering`](@ref).
 """
-struct TemperedTransition{S}
-    transition::S
-    is_swap::Bool
-end
+models_by_processes(ordering, models, state) = sort_by_process(ordering, state, models)
 
-TemperedTransition(transition::S) where {S} = TemperedTransition(transition, false)
+"""
+    samplers_by_processes(ordering, samplers, state)
 
-getparams_and_logprob(transition::TemperedTransition) = getparams_and_logprob(transition.transition)
-getparams_and_logprob(model, transition::TemperedTransition) = getparams_and_logprob(model, transition.transition)
+Return the `samplers` in the order of processes, assuming `samplers` is sorted according to `ordering`.
 
+See also: [`ProcessOrdering`](@ref), [`ChainOrdering`](@ref).
+"""
+samplers_by_processes(ordering, samplers, state) = sort_by_process(ordering, state, samplers)

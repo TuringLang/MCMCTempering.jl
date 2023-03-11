@@ -19,11 +19,7 @@
             state_initial,
         )
 
-        if MCMCTempering.saveall(spl_composed)
-            @test state_composed_initial isa MCMCTempering.SequentialStates
-        else
-            @test state_composed_initial isa MCMCTempering.CompositionState
-        end
+        @test state_composed_initial isa MCMCTempering.CompositionState
 
         # Take two steps with `spl`.
         rng = Random.MersenneTwister(42)
@@ -42,11 +38,9 @@
 
             # Make sure the state types stay consistent.
             if MCMCTempering.saveall(spl_composed)
-                @test transition isa MCMCTempering.SequentialTransitions
-                @test state_composed isa MCMCTempering.SequentialStates
-            else
-                @test state_composed isa MCMCTempering.CompositionState
+                @test transition isa MCMCTempering.CompositionTransition
             end
+            @test state_composed isa MCMCTempering.CompositionState
         end
         params_composed, logp_composed = MCMCTempering.getparams_and_logprob(logdensity_model, state_composed)
 
@@ -62,6 +56,7 @@
         )
 
         # Should be the same length because the `SequentialTransitions` will be unflattened.
+        @test chain_composed isa MCMCChains.Chains
         @test length(chain_composed) == length(chain)
     end
 
@@ -159,5 +154,33 @@
             @test map(first, params_and_logp) == params_multi
             @test map(last, params_and_logp) == logp_multi
         end
+    end
+
+    @testset "SwapSampler" begin
+        # SwapSampler without tempering (i.e. in a composition and using `MultiModel`, etc.)
+        init_params = [[5.0], [5.0]]
+        mdl1 = LogDensityProblemsAD.ADgradient(Val(:ForwardDiff), DistributionLogDensity(Normal(4.9999, 1)))
+        mdl2 = LogDensityProblemsAD.ADgradient(Val(:ForwardDiff), DistributionLogDensity(Normal(5.0001, 1)))
+        spl1 = RWMH(MvNormal(Zeros(dimension(mdl1)), I))
+        spl2 = let σ² = 1e-2
+            MALA(∇ -> MvNormal(σ² * ∇, 2σ² * I))
+        end
+        swapspl = MCMCTempering.SwapSampler()
+        spl_full = (spl1 × spl2) ∘ swapspl
+        product_model = LogDensityModel(mdl1) × LogDensityModel(mdl2)
+        # Sample!
+        multisamples = sample(product_model, spl_full, 1000; init_params=init_params, progress=false)
+        # Extract the transitions corresponding to each of the models.
+        model_transitions = mapreduce(hcat, multisamples) do t
+            [MCMCTempering.outer_transition(t).transitions[MCMCTempering.inner_transition(t).process_to_chain]...]
+        end
+        # Make sure we actually got some swaps going and we were using different types of states
+        # for both models.
+        @test length(unique(typeof, model_transitions[1, :])) ≥ 1
+        @test length(unique(typeof, model_transitions[2, :])) ≥ 1
+
+        # Check that means are roughly okay.
+        model_params = map(first ∘ MCMCTempering.getparams, model_transitions)
+        @test vec(mean(model_params; dims=2)) ≈ [5.0, 5.0] atol=0.2
     end
 end

@@ -58,21 +58,45 @@ function setparams_and_logprob!!(model, state::CompositionState, params, logprob
     return @set state.state_outer = setparams_and_logprob!!(model, state.state_outer, params, logprob)
 end
 
+struct CompositionTransition{S1,S2}
+    "The outer transition"
+    transition_outer::S1
+    "The inner transition"
+    transition_inner::S2
+end
+
+# Useful functions for interacting with composition sampler and states.
+inner_sampler(sampler::CompositionSampler) = sampler.sampler_inner
+outer_sampler(sampler::CompositionSampler) = sampler.sampler_outer
+
+inner_state(state::CompositionState) = state.state_inner
+outer_state(state::CompositionState) = state.state_outer
+
+inner_transition(transition::CompositionTransition) = transition.transition_inner
+outer_transition(transition::CompositionTransition) = transition.transition_outer
+outer_transition(transition) = transition  # in case we don't have `saveall`
+
+# TODO: We really don't need to use `SequentialStates` here, do we?
+composition_state(sampler, state_inner, state_outer) = CompositionState(state_outer, state_inner)
+function composition_transition(sampler, transition_inner, transition_outer)
+    return if saveall(sampler)
+        CompositionTransition(transition_outer, transition_inner)
+    else
+        transition_outer
+    end
+end
+
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model::AbstractMCMC.AbstractModel,
     sampler::CompositionSampler;
     kwargs...
 )
-    state_inner_initial = last(AbstractMCMC.step(rng, model, sampler.sampler_inner; kwargs...))
-    state_outer_initial = last(AbstractMCMC.step(rng, model, sampler.sampler_outer; kwargs...))
+    state_inner_initial = last(AbstractMCMC.step(rng, model, inner_sampler(sampler); kwargs...))
+    state_outer_initial = last(AbstractMCMC.step(rng, model, outer_sampler(sampler); kwargs...))
 
     # Create the composition state, and take a full step.
-    state = if saveall(sampler)
-        SequentialStates((state_inner_initial, state_outer_initial))
-    else
-        CompositionState(state_outer_initial, state_inner_initial)
-    end
+    state = composition_state(sampler, state_inner_initial, state_outer_initial)
     return AbstractMCMC.step(rng, model, sampler, state; kwargs...)
 end
 
@@ -80,18 +104,14 @@ end
 # in place of `CompositionState` and just have one version.
 # The annoying part here is that we'll have to check `saveall` on every `step`
 # rather than just for the initial step.
-
-# NOTE: Version which does keep track of all transitions and states.
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model::AbstractMCMC.AbstractModel,
     sampler::CompositionSampler,
-    state::SequentialStates;
+    state;
     kwargs...
 )
-    @assert length(state.states) == 2 "Composition samplers only support SequentialStates with two states."
-
-    state_inner_prev, state_outer_prev = state.states
+    state_inner_prev, state_outer_prev = inner_state(state), outer_state(state)
 
     # Update the inner state.
     current_state_inner = state_from(model, state_inner_prev, state_outer_prev)
@@ -103,29 +123,8 @@ function AbstractMCMC.step(
     current_state_outer = state_from(model, state_outer_prev, state_inner)
     transition_outer, state_outer = AbstractMCMC.step(rng, model, sampler.sampler_outer, current_state_outer; kwargs...)
 
-    return SequentialTransitions((transition_inner, transition_outer)), SequentialStates((state_inner, state_outer))
-end
-
-# NOTE: Version which does NOT keep track of all transitions and states.
-function AbstractMCMC.step(
-    rng::Random.AbstractRNG,
-    model::AbstractMCMC.AbstractModel,
-    sampler::CompositionSampler,
-    state::CompositionState;
-    kwargs...
-)
-    # Update the inner state.
-    current_state_inner = state_from(model, state.state_inner, state.state_outer)
-
-    # Take a step in the inner sampler.
-    state_inner = last(AbstractMCMC.step(rng, model, sampler.sampler_inner, current_state_inner; kwargs...))
-
-    # Take a step in the outer sampler.
-    current_state_outer = state_from(model, state.state_outer, state_inner)
-    transition_outer, state_outer = AbstractMCMC.step(rng, model, sampler.sampler_outer, current_state_outer; kwargs...)
-
-    # Create the composition state.
-    state = CompositionState(state_outer, state_inner)
-
-    return transition_outer, state
+    return (
+        composition_transition(sampler, transition_inner, transition_outer),
+        composition_state(sampler, state_inner, state_outer)
+    )
 end

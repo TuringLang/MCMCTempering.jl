@@ -57,6 +57,8 @@ end
 ×(model1::AbstractMCMC.AbstractModel, model2::MultiModel) = MultiModel(combine(model1, model2.models))
 ×(model1::MultiModel, model2::MultiModel) = MultiModel(combine(model1.models, model2.models))
 
+Base.length(model::MultiModel) = length(model.models)
+
 # TODO: Make these subtypes of `AbstractVector`?
 """
     MultipleTransitions
@@ -108,13 +110,13 @@ function getparams_and_logprob(model::MultiModel, state::MultipleStates)
     return map(first, params_and_logprobs), map(last, params_and_logprobs)
 end
 
-function setparams_and_logprob!!(state::MultipleStates, params, logprob)
-    @assert length(params) == length(logprob) == length(state.states) "The number of parameters and log probabilities must match the number of states."
-    return @set state.states = map(setparams_and_logprob!!, state.states, params, logprob)
+function setparams_and_logprob!!(state::MultipleStates, params, logprobs)
+    @assert length(params) == length(logprobs) == length(state.states) "The number of parameters and log probabilities must match the number of states."
+    return @set state.states = map(setparams_and_logprob!!, state.states, params, logprobs)
 end
-function setparams_and_logprob!!(model::MultiModel, state::MultipleStates, params, logprob)
-    @assert length(params) == length(logprob) == length(state.states) "The number of parameters and log probabilities must match the number of states."
-    return @set state.states = map(setparams_and_logprob!!, model.models, state.states, params, logprob)
+function setparams_and_logprob!!(model::MultiModel, state::MultipleStates, params, logprobs)
+    @assert length(model.models) == length(params) == length(logprobs) == length(state.states) "The number of models, states, parameters, and log probabilities must match."
+    return @set state.states = map(setparams_and_logprob!!, model.models, state.states, params, logprobs)
 end
 
 # TODO: Clean this up.
