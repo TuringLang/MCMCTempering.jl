@@ -174,6 +174,7 @@ function compare_chains(
     if compare_ess
         ess = to_dict(MCMCChains.ess(chain))
         ess_tempered = to_dict(MCMCChains.ess(chain_tempered))
+        @info ess ess_tempered
         if isbroken
             @test_broken all(ess_tempered[sym] ≥ ess[sym] * compare_ess_slack for sym in keys(ess))
         else
