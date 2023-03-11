@@ -67,6 +67,7 @@ end
 function test_std(chain::MCMCChains.Chains, std_true::AbstractDict; n=length(chain), kwargs...)
     chain = thin_to(chain, n)
     atol = atol_for_chain(chain; kind=Statistics.std, kwargs...)
+    @info "std" (std(chain[sym]), std_true[sym], atol[sym]) for sym in names(chain, :parameters)
     @test all(isapprox(std(chain[sym]), std_true[sym], atol=atol[sym]) for sym in names(chain, :parameters))
 end
 
