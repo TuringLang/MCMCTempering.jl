@@ -127,7 +127,7 @@ inverse temperatures generated from `num_temps` and the `swap_strategy`.
 
 # Keyword arguments
 - `swap_strategy::AbstractSwapStrategy` specifies the method for swapping inverse temperatures between chains
-- `swap_every::Integer` steps are carried out between each attempt at a swap
+- `steps_per_swap::Integer` steps are carried out between each attempt at a swap
 
 # See also
 - [`TemperedSampler`](@ref)
@@ -156,7 +156,6 @@ function tempered(
     sampler::AbstractMCMC.AbstractSampler,
     inverse_temperatures::Vector{<:Real};
     swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
-    # TODO: Change `swap_every` to something like `number_of_iterations_per_swap`.
     steps_per_swap::Integer=1,
     adapt::Bool=false,
     adapt_target::Real=0.234,
