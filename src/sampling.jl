@@ -9,7 +9,7 @@ Provide either `inverse_temperatures` or `N_it` (and a `swap_strategy`) to gener
 # Keyword arguments
 - `N_burnin::Integer` burn-in steps will be carried out before any swapping between chains is attempted
 - `swap_strategy::AbstractSwapStrategy` specifies the method for swapping inverse temperatures between chains
-- `swap_every::Integer` steps are carried out between each attempt at a swap
+- `steps_per_swap::Integer` steps are carried out between each attempt at a swap
 
 # See also
 - [`tempered`](@ref)

@@ -70,7 +70,8 @@ function bundle_nontempered_samples(
         multimodel,
         multisampler,
         MultipleStates(sort_by_chain(ProcessOrder(), state.swapstate, state.state.states)),
-        T
+        T;
+        kwargs...
     )
 end
 
@@ -98,12 +99,24 @@ function AbstractMCMC.bundle_samples(
     bundle_resolve_swaps::Bool=false,
     kwargs...
 ) where {T}
+    # TODO: Implement special one for `Vector{MCMCChains.Chains}`.
     if bundle_resolve_swaps
         return bundle_nontempered_samples(ts, model, sampler, state, Vector{T}; kwargs...)
     end
 
     # TODO: Do better?
     return ts
+end
+
+function AbstractMCMC.bundle_samples(
+    ts::Vector{<:TemperedTransition{<:SwapTransition,<:MultipleTransitions}},
+    model::AbstractMCMC.AbstractModel,
+    sampler::TemperedSampler,
+    state::TemperedState,
+    ::Type{Vector{MCMCChains.Chains}};
+    kwargs...
+)
+    return bundle_nontempered_samples(ts, model, sampler, state, Vector{MCMCChains.Chains}; kwargs...)
 end
 
 function AbstractMCMC.bundle_samples(

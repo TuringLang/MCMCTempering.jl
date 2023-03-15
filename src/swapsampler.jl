@@ -11,6 +11,11 @@ end
 
 SwapSampler() = SwapSampler(ReversibleSwap())
 
+"""
+    swapstrategy(sampler::SwapSampler)
+
+Return the swap-strategy used by `sampler`.
+"""
 swapstrategy(sampler::SwapSampler) = sampler.strategy
 
 # Interaction with the state.
@@ -112,6 +117,8 @@ function AbstractMCMC.step(
     @set! model.models = models_by_processes(ChainOrder(), chain2models, swapstate_prev)
 
     # Step for the swap-sampler.
+    # TODO: We should probably call `state_from(model, model_other, state, state_other)` so we
+    # can avoid additional log-joint computations, gradient commputations, etc.
     swaptransition, swapstate = AbstractMCMC.step(
         rng, model, swapsampler, state_from(model, swapstate_prev, outerstate_prev);
         kwargs...

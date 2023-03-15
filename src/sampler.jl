@@ -113,21 +113,21 @@ numtemps(sampler::TemperedSampler) = length(sampler.chain_to_beta)
 """
     tempered(sampler, inverse_temperatures; kwargs...)
     OR
-    tempered(sampler, N_it; swap_strategy=ReversibleSwap(), kwargs...)
+    tempered(sampler, num_temps; swap_strategy=ReversibleSwap(), kwargs...)
 
 Return a tempered version of `sampler` using the provided `inverse_temperatures` or
-inverse temperatures generated from `N_it` and the `swap_strategy`.
+inverse temperatures generated from `num_temps` and the `swap_strategy`.
 
 # Arguments
 - `sampler` is an algorithm or sampler object to be used for underlying sampling and to apply tempering to
 - The temperature schedule can be defined either explicitly or just as an integer number of temperatures, i.e. as:
   - `inverse_temperatures` containing a sequence of 'inverse temperatures' {β₀, ..., βₙ} where 0 ≤ βₙ < ... < β₁ < β₀ = 1
         OR
-  - `N_it`, specifying the integer number of inverse temperatures to include in a generated `inverse_temperatures`
+  - `num_temps`, specifying the integer number of inverse temperatures to include in a generated `inverse_temperatures`
 
 # Keyword arguments
 - `swap_strategy::AbstractSwapStrategy` specifies the method for swapping inverse temperatures between chains
-- `swap_every::Integer` steps are carried out between each attempt at a swap
+- `steps_per_swap::Integer` steps are carried out between each attempt at a swap
 
 # See also
 - [`TemperedSampler`](@ref)
@@ -142,17 +142,20 @@ inverse temperatures generated from `N_it` and the `swap_strategy`.
 """
 function tempered(
     sampler::AbstractMCMC.AbstractSampler,
-    N_it::Integer;
+    num_temps::Integer;
     swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
     kwargs...
 )
-    return tempered(sampler, generate_inverse_temperatures(N_it, swap_strategy); swap_strategy = swap_strategy, kwargs...)
+    return tempered(
+        sampler, generate_inverse_temperatures(num_temps, swap_strategy);
+        swap_strategy = swap_strategy,
+        kwargs...
+    )
 end
 function tempered(
     sampler::AbstractMCMC.AbstractSampler,
     inverse_temperatures::Vector{<:Real};
     swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
-    # TODO: Change `swap_every` to something like `number_of_iterations_per_swap`.
     steps_per_swap::Integer=1,
     adapt::Bool=false,
     adapt_target::Real=0.234,
