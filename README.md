@@ -1,8 +1,3 @@
-| :warning: WARNING          |
-|:---------------------------|
-
-This package is currently under development. Details below are subject to change.
-
 # MCMCTempering.jl
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://turinglang.org/MCMCTempering.jl/stable)
