@@ -26,3 +26,36 @@ function MCMCTempering.setparams_and_logprob!!(model, state::AdvancedHMC.HMCStat
         ℓκ=state.transition.z.ℓκ
     )
 end
+
+# Test this:
+using AbstractMCMC: LogDensityModel
+
+function MCMCTempering.state_from(
+    model::LogDensityModel{<:MCMCTempering.TemperedLogDensityProblem},
+    model_other::LogDensityModel{<:MCMCTempering.TemperedLogDensityProblem},
+    state::AdvancedHMC.HMCState,
+    state_other::AdvancedHMC.HMCState,
+)
+    beta = model.logdensity.beta
+    beta_other = model_other.logdensity.beta
+
+    z = state.transition.z
+    z_other = state_other.transition.z
+
+    params_other = z_other.θ
+    logprob_other = z_other.ℓπ.value
+    gradient_other = z_other.ℓπ.gradient
+
+    # `logprob` is actually `β * actual_logprob`, and we want it to be `β_other * actual_logprob`, so:
+    delta_beta = beta_other / beta
+    logprob_new = delta_beta * logprob_other
+    gradient_new = delta_beta .* gradient_other
+
+    # Construct `PhasePoint`. Note that we keep `r` and `ℓκ` from the original state.
+    return @set state.transition.z = AdvancedHMC.PhasePoint(
+        params_other,
+        z.r,
+        AdvancedHMC.DualValue(logprob_new, gradient_new),
+        z.ℓκ
+    )
+end

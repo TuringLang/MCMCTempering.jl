@@ -119,6 +119,26 @@ function setparams_and_logprob!!(model::MultiModel, state::MultipleStates, param
     return @set state.states = map(setparams_and_logprob!!, model.models, state.states, params, logprobs)
 end
 
+# NOTE: Is this too general; should we specify the types of the states?
+function state_from(model::MultiModel, state, state_other)
+    @assert length(model.models) == length(state.states) == length(state_other.states) "The number of models and states must match."
+    return @set state.states = map(model.models, state_other.states, state.states) do m, s1, s2
+        state_from(m, s1, s2)
+    end
+end
+
+function state_from(model::MultiModel, model_other::MultiModel, state, state_other)
+    @assert length(model.models) == length(model_other.models) == length(state.states) == length(state_other.states) "The number of models and states must match."
+    return @set state.states = map(
+        model.models,
+        model_other.models,
+        state.states,
+        state_other.states,
+    ) do m1, m2, s1, s2
+        state_from(m1, m2, s1, s2)
+    end
+end
+
 # TODO: Clean this up.
 initparams(model::MultiModel, init_params) = map(Base.Fix1(get_init_params, init_params), 1:length(model.models))
 initparams(model::MultiModel{<:Tuple}, init_params) =  ntuple(length(model.models)) do i
