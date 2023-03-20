@@ -41,6 +41,9 @@ Transition type for tempered samplers.
     process_to_chain
 end
 
+chain_to_process(state::SwapTransition, I...) = chain_to_process(state.chain_to_process, I...)
+process_to_chain(state::SwapTransition, I...) = process_to_chain(state.process_to_chain, I...)
+
 function composition_transition(
     sampler::CompositionSampler{<:AbstractMCMC.AbstractSampler,<:SwapSampler},
     swaptransition::SwapTransition,

@@ -1,6 +1,3 @@
-# TODO: Move.
-chain_to_process(transition::SwapTransition, I...) = transition.chain_to_process[I...]
-
 """
     roundtrips(transitions)
 
