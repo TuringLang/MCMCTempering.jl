@@ -120,14 +120,14 @@ function setparams_and_logprob!!(model::MultiModel, state::MultipleStates, param
 end
 
 # NOTE: Is this too general; should we specify the types of the states?
-function state_from(model::MultiModel, state, state_other)
+function state_from(model::MultiModel, state::MultipleStates, state_other::MultipleStates)
     @assert length(model.models) == length(state.states) == length(state_other.states) "The number of models and states must match."
-    return @set state.states = map(model.models, state_other.states, state.states) do m, s1, s2
+    return @set state.states = map(model.models, state.states, state_other.states) do m, s1, s2
         state_from(m, s1, s2)
     end
 end
 
-function state_from(model::MultiModel, model_other::MultiModel, state, state_other)
+function state_from(model::MultiModel, model_other::MultiModel, state::MultipleStates, state_other::MultipleStates)
     @assert length(model.models) == length(model_other.models) == length(state.states) == length(state_other.states) "The number of models and states must match."
     return @set state.states = map(
         model.models,

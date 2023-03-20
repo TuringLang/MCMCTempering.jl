@@ -136,6 +136,16 @@
                 MCMCTempering.MultipleStates(states_initial),
             )
 
+            params_and_logp_initial = map(
+                Base.Fix1(MCMCTempering.getparams_and_logprob, logdensity_model),
+                states_initial
+            )
+            params_multi_initial, logp_multi_initial = MCMCTempering.getparams_and_logprob(
+                model_multi, states_multi_initial
+            )
+            @test map(first, params_and_logp) == params_multi
+            @test map(last, params_and_logp) == logp_multi
+
             # Taking a step with `spl_multi` on `multimodel` should be equivalent
             # to stepping with the component samplers on the component models.
             rng = Random.MersenneTwister(42)
