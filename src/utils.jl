@@ -1,5 +1,5 @@
 # TODO: Move.
-chain_to_process(transition::SwapTransition, I...) = transition.chain_to_process[I...]
+process_to_chain(transition::SwapTransition, I...) = transition.process_to_chain[I...]
 
 """
     roundtrips(transitions)
@@ -12,16 +12,16 @@ end
 function roundtrips(transitions::AbstractVector{<:SwapTransition})
     result = Tuple{Int,Int,Int}[]
     start_index, turn_index = 1, nothing
-    for (i, t) in enumerate(transitions)
+    for (i, t) in Iterators.drop(enumerate(transitions), 1)
         n = length(t.chain_to_process)
         if isnothing(turn_index)
             # Looking for the turn.
-            if chain_to_process(t, 1) == n
+            if process_to_chain(t, 1) == n  # i.e., the first process is now working on chain `n`
                 turn_index = i
             end
         else
             # Looking for the return/end.
-            if chain_to_process(t, 1) == 1
+            if process_to_chain(t, 1) == 1  # i.e. the first process is now working on chain 1
                 push!(result, (start_index, turn_index, i))
                 # Reset.
                 start_index = i
