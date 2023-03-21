@@ -179,10 +179,21 @@
         spl_full = (spl1 × spl2) ∘ swapspl
         product_model = LogDensityModel(mdl1) × LogDensityModel(mdl2)
         # Sample!
-        multisamples = sample(product_model, spl_full, 1000; init_params=init_params, progress=false)
+        multisamples = sample(
+            product_model, spl_full, 1000;
+            init_params=init_params,
+            progress=false,
+            discard_initial=100,  # a bit of burn-in
+        )
         # Extract the transitions corresponding to each of the models.
         model_transitions = mapreduce(hcat, multisamples) do t
-            [MCMCTempering.outer_transition(t).transitions[MCMCTempering.inner_transition(t).process_to_chain]...]
+            # Sort the transitions so they're in the order of the chains.
+            x = MCMCTempering.sort_by_chain(
+                MCMCTempering.ProcessOrder(),
+                MCMCTempering.inner_transition(t),
+                MCMCTempering.outer_transition(t).transitions
+            )
+            return [x...]
         end
         # Make sure we actually got some swaps going and we were using different types of states
         # for both models.
