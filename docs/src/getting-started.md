@@ -1,6 +1,4 @@
-# Getting started
-
-## Mixture of Gaussians
+# Getting started: a simple Mixture of Gaussians example
 
 Suppose we have a mixture of Gaussians, e.g. something like
 
@@ -37,6 +35,8 @@ LogDensityProblems.capabilities(::Type{<:DistributionLogDensity}) = LogDensityPr
 # Wrap our target distribution.
 target_model = DistributionLogDensity(target_distribution)
 ```
+
+## Metropolis-Hastings (AdvancedMH.jl)
 
 Immediately one might reach for a standard sampler, e.g. a random-walk Metropolis-Hastings (RWMH) from [`AdvancedMH.jl`](https://github.com/TuringLang/AdvancedMH.jl) and start sampling using `sample`:
 
@@ -150,7 +150,7 @@ density!(chain_tempered_all[1], color="green", size=figsize)
 plot!(size=figsize)
 ```
 
-### AdvancedHMC.jl
+## HMC (AdvancedHMC.jl)
 
 We also do this with AdvancedHMC.jl.
 
