@@ -7,7 +7,7 @@ MCMCTempering.tempered
 MCMCTempering.TemperedSampler
 ```
 
-Under the hood, [`MCMCTempering.TemperedSampler`](@ref) is actually just a "fancy" representation of a composition (represented using a [`MCMCTempering.CompositionSampler`](@ref)) of a [`MultiSampler`](@ref) and a [`SwapSampler`](@ref).
+Under the hood, [`MCMCTempering.TemperedSampler`](@ref) is actually just a "fancy" representation of a composition (represented using a [`MCMCTempering.CompositionSampler`](@ref)) of a [`MCMCTempering.MultiSampler`](@ref) and a [`MCMCTempering.SwapSampler`](@ref).
 
 Roughly speaking, the implementation of `AbstractMCMC.step` for [`MCMCTempering.TemperedSampler`](@ref) is basically
 
@@ -26,7 +26,17 @@ which in this case is provided by repeated calls to [`MCMCTempering.make_tempere
 MCMCTempering.make_tempered_model
 ```
 
-This should be overloaded if you have some custom model-type that does not support the LogDensityProblems.jl-interface.
+This should be overloaded if you have some custom model-type that does not support the LogDensityProblems.jl-interface. In the case where the model _does_ support the LogDensityProblems.jl-interface, then the following will automatically be constructed
+
+```@docs
+MCMCTempering.TemperedLogDensityProblem
+```
+
+In addition, for computation of the tempered logdensities, we have
+
+```@docs
+MCMCTempering.compute_logdensities
+```
 
 ## Swapping
 
@@ -80,13 +90,13 @@ MCMCTempering.CompositionState
 
 Large compositions can have unfortunate effects on the compilation times in Julia.
 
-To alleviate this issue we also have the [`RepeatedSampler`](@ref):
+To alleviate this issue we also have the [`MCMCTempering.RepeatedSampler`](@ref):
 
 ```@docs
 MCMCTempering.RepeatedSampler
 ```
 
-In the case where [`saveall`](@ref) returns `false`, `step` for a [`MCMCTempering.RepeatedSampler`](@ref) simply returns the last transition and state; if it returns `true`, then the transition is of type [`MCMCTempering.SequentialTransitions`](@ref) and the state is of type [`MCMCTempering.SequentialStates`](@ref).
+In the case where [`MCMCTempering.saveall`](@ref) returns `false`, `step` for a [`MCMCTempering.RepeatedSampler`](@ref) simply returns the last transition and state; if it returns `true`, then the transition is of type [`MCMCTempering.SequentialTransitions`](@ref) and the state is of type [`MCMCTempering.SequentialStates`](@ref).
 
 ```@docs
 MCMCTempering.SequentialTransitions

@@ -25,7 +25,7 @@ function AbstractMCMC.step(
         for i in 1:numtemps(sampler)
     ])
     multisampler = MultiSampler([getsampler(sampler, i) for i in 1:numtemps(sampler)])
-    multistate = last(AbstractMCMC.step(rng, multimodel, multisampler; kwargs...))
+    multitransition, multistate = AbstractMCMC.step(rng, multimodel, multisampler; kwargs...)
 
     # Make sure to collect, because we'll be using `setindex!(!)` later.
     process_to_chain = collect(1:length(sampler.chain_to_beta))
@@ -39,7 +39,11 @@ function AbstractMCMC.step(
         Dict{Int,Float64}(),
     )
 
-    return AbstractMCMC.step(rng, model, sampler, TemperedState(swapstate, multistate, sampler.chain_to_beta))
+    swaptransition = SwapTransition(deepcopy(swapstate.chain_to_process), deepcopy(swapstate.process_to_chain))
+    return (
+        TemperedTransition(swaptransition, multitransition),
+        TemperedState(swapstate, multistate, sampler.chain_to_beta)
+    )
 end
 
 function AbstractMCMC.step(

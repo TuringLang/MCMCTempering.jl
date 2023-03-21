@@ -41,6 +41,9 @@ Transition type for tempered samplers.
     process_to_chain
 end
 
+chain_to_process(state::SwapTransition, I...) = chain_to_process(state.chain_to_process, I...)
+process_to_chain(state::SwapTransition, I...) = process_to_chain(state.process_to_chain, I...)
+
 function composition_transition(
     sampler::CompositionSampler{<:AbstractMCMC.AbstractSampler,<:SwapSampler},
     swaptransition::SwapTransition,
@@ -120,12 +123,14 @@ function AbstractMCMC.step(
     # TODO: We should probably call `state_from(model, model_other, state, state_other)` so we
     # can avoid additional log-joint computations, gradient commputations, etc.
     swaptransition, swapstate = AbstractMCMC.step(
-        rng, model, swapsampler, state_from(model, swapstate_prev, outerstate_prev);
+        rng, model, swapsampler, state_from(model, model, swapstate_prev, outerstate_prev);
         kwargs...
     )
 
     # Re-order the models AGAIN, since we might have swapped some.
-    @set! model.models = models_by_processes(ChainOrder(), chain2models, swapstate)
+    # NOTE: We don't override `model` because we want to let `state_from` know that the previous
+    # states came from `model`, not `model_reordered`.
+    model_reordered = @set model.models = models_by_processes(ChainOrder(), chain2models, swapstate)
 
     # Create the current state from `outerstate_prev` and `swapstate`, and `step` for `outersampler`.`
     outertransition, outerstate = AbstractMCMC.step(
@@ -134,7 +139,7 @@ function AbstractMCMC.step(
         # quantities from the `model`, which has now potentially been re-ordered (see above).
         # NOTE: We do NOT do `state_from(model, outerstate_prev, swapstate)` because as of now,
         # `swapstate` does not implement `getparams_and_logprob`.
-        rng, model, outersampler, state_from(model, outerstate_prev, outerstate_prev);
+        rng, model_reordered, outersampler, state_from(model_reordered, model, outerstate_prev, outerstate_prev);
         kwargs...
     )
 

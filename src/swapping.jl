@@ -101,7 +101,7 @@ end
 
 Return `(logdensity(model, state), logdensity(model, state_other))`.
 
-The default implementation extracts the parameters from the transitions using [`getparams`](@ref).
+The default implementation extracts the parameters from the transitions using [`MCMCTempering.getparams`](@ref).
 
 `model_other` can be provided to allow specializations that might be more efficient
 if we know that `state_other` is from `model_other`, e.g. in the case where the log-probability
@@ -114,10 +114,9 @@ function compute_logdensities(
     state,
     state_other,
 )
-    # TODO: Make use of `getparams_and_logprob` instead? At least for the `(model, state)` pair?
     return (
-        logdensity(model, getparams(model, state)),
-        logdensity(model, getparams(model, state_other))
+        getlogprob(model, state),                        # This we can just extract.
+        logdensity(model, getparams(model, state_other)) # While this we need to compute.
     )
 end
 
@@ -128,6 +127,22 @@ function compute_logdensities(
     state_other,
 )
     return compute_logdensities(model, state, state_other)
+end
+
+# But for tempered versions, we can do better!
+function compute_logdensities(
+    model::AbstractMCMC.LogDensityModel{<:TemperedLogDensityProblem},
+    model_other::AbstractMCMC.LogDensityModel{<:TemperedLogDensityProblem},
+    state,
+    state_other,
+)
+    beta = model.logdensity.beta
+    beta_other = model_other.logdensity.beta
+
+    logprob = getlogprob(state)
+    logprob_other = getlogprob(state_other)
+
+    return (logprob, (beta / beta_other) * logprob_other)
 end
 
 """

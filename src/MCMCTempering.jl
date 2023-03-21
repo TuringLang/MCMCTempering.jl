@@ -99,13 +99,12 @@ function AbstractMCMC.bundle_samples(
     bundle_resolve_swaps::Bool=false,
     kwargs...
 ) where {T}
-    # TODO: Implement special one for `Vector{MCMCChains.Chains}`.
-    if bundle_resolve_swaps
-        return bundle_nontempered_samples(ts, model, sampler, state, Vector{T}; kwargs...)
-    end
+    # NOTE: If we can't resolve the swaps, there's not really much we can do in terms
+    # of bundling the samples.
+    # TODO: Is this the best we can do?
+    !bundle_resolve_swaps && return ts
 
-    # TODO: Do better?
-    return ts
+    return bundle_nontempered_samples(ts, model, sampler, state, Vector{T}; kwargs...)
 end
 
 function AbstractMCMC.bundle_samples(
@@ -188,15 +187,19 @@ function AbstractMCMC.bundle_samples(
     bundle_resolve_swaps::Bool=false,
     kwargs...
 ) where {T}
+    # NOTE: If we can't resolve the swaps, there's not really much we can do in terms
+    # of bundling the samples.
+    # TODO: Is this the best we can do?
     !bundle_resolve_swaps && return ts
 
-    # Resolve the swaps.
-    sampler_without_saveall = @set sampler.sampler_inner.saveall = Val(false)
+    # Resolve the swaps (using the already implemented resolution in `composition_transition`
+    # for this particular sampler but without `saveall`).
+    sampler_without_saveall = @set sampler.saveall = Val(false)
     ts_actual = map(ts) do t
         composition_transition(sampler_without_saveall, inner_transition(t), outer_transition(t))
     end
 
-    AbstractMCMC.bundle_samples(
+    return AbstractMCMC.bundle_samples(
         ts_actual, model, sampler.sampler_outer, state.state_outer, T;
         kwargs...
     )
@@ -212,6 +215,9 @@ function AbstractMCMC.bundle_samples(
     bundle_resolve_swaps::Bool=false,
     kwargs...
 ) where {T}
+    # NOTE: If we can't resolve the swaps, there's not really much we can do in terms
+    # of bundling the samples.
+    # TODO: Is this the best we can do?
     !bundle_resolve_swaps && return ts
 
     # Resolve the swaps (using the already implemented resolution in `composition_transition`

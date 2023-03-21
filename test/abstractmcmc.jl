@@ -121,7 +121,7 @@
             MCMCTempering.MultiModel((logdensity_model, logdensity_model)),  # tuple
             MCMCTempering.MultiModel([logdensity_model, logdensity_model]),  # vector
             MCMCTempering.MultiModel((m for m in [logdensity_model, logdensity_model]))  # iterator
-            ]
+        ]
 
             @test spl_multi isa MCMCTempering.MultiSampler
 
@@ -135,6 +135,16 @@
                 last(AbstractMCMC.step(Random.default_rng(), model_multi, spl_multi)),
                 MCMCTempering.MultipleStates(states_initial),
             )
+
+            params_and_logp_initial = map(
+                Base.Fix1(MCMCTempering.getparams_and_logprob, logdensity_model),
+                states_initial
+            )
+            params_multi_initial, logp_multi_initial = MCMCTempering.getparams_and_logprob(
+                model_multi, states_multi_initial
+            )
+            @test map(first, params_and_logp_initial) == params_multi_initial
+            @test map(last, params_and_logp_initial) == logp_multi_initial
 
             # Taking a step with `spl_multi` on `multimodel` should be equivalent
             # to stepping with the component samplers on the component models.
@@ -168,19 +178,90 @@
         swapspl = MCMCTempering.SwapSampler()
         spl_full = (spl1 × spl2) ∘ swapspl
         product_model = LogDensityModel(mdl1) × LogDensityModel(mdl2)
+
         # Sample!
-        multisamples = sample(product_model, spl_full, 1000; init_params=init_params, progress=false)
+        rng = Random.default_rng()
+        transition, state = AbstractMCMC.step(rng, product_model, spl_full; init_params)
+        transitions = typeof(transition)[]
+
+        # A bit of warm-up.
+        for _ = 1:100
+            transition, state = AbstractMCMC.step(rng, product_model, spl_full, state)
+        end
+
+        # A bit of sampling.
+        for _ = 1:1000
+            transition, state = AbstractMCMC.step(rng, product_model, spl_full, state)
+            push!(transitions, transition)
+        end
+
+        # Without resolution of the swaps.
+        transitions_unresolved_inner = mapreduce(hcat, transitions) do t
+            [MCMCTempering.outer_transition(t).transitions...]
+        end
+        # Since transitions are sorted according to the processes, we shouldn't see
+        # any mixing of the types.
+        @test length(unique(typeof, transitions_unresolved_inner[1, :])) == 1
+        @test length(unique(typeof, transitions_unresolved_inner[2, :])) == 1
+
         # Extract the transitions corresponding to each of the models.
-        model_transitions = mapreduce(hcat, multisamples) do t
-            [MCMCTempering.outer_transition(t).transitions[MCMCTempering.inner_transition(t).process_to_chain]...]
+        # NOTE: Here we do it by hand, then we'll use the automatic functionality below.
+        transitions_resolved_inner = mapreduce(hcat, transitions) do t
+            # Sort the transitions so they're in the order of the chains.
+            x = MCMCTempering.sort_by_chain(
+                MCMCTempering.ProcessOrder(),
+                MCMCTempering.inner_transition(t),
+                MCMCTempering.outer_transition(t).transitions
+            )
+            return [x...]
         end
         # Make sure we actually got some swaps going and we were using different types of states
         # for both models.
-        @test length(unique(typeof, model_transitions[1, :])) ≥ 1
-        @test length(unique(typeof, model_transitions[2, :])) ≥ 1
+        @test length(unique(typeof, transitions_resolved_inner[1, :])) ≥ 1
+        @test length(unique(typeof, transitions_resolved_inner[2, :])) ≥ 1
 
         # Check that means are roughly okay.
-        model_params = map(first ∘ MCMCTempering.getparams, model_transitions)
-        @test vec(mean(model_params; dims=2)) ≈ [5.0, 5.0] atol=0.2
+        params_resolved = map(first ∘ MCMCTempering.getparams, transitions_resolved_inner)
+        @test vec(mean(params_resolved; dims=2)) ≈ [5.0, 5.0] atol = 0.2
+
+        # A composition of `SwapSampler` and `MultiSampler` has special `AbstractMCMC.bundle_samples`.
+        @testset "bundle_samples with Vector" begin
+            # With `bundle_resolve_swaps=true`.
+            transitions_bundle_resolved = AbstractMCMC.bundle_samples(
+                transitions, product_model, spl_full, state, Vector;
+                bundle_resolve_swaps=true
+            )
+            transitions_bundle_resolved_inner = mapreduce(hcat, transitions_bundle_resolved) do t
+                [t.transitions...]
+            end
+            @test transitions_resolved_inner == transitions_bundle_resolved_inner
+
+            # With `bundle_resolve_swaps=false`.
+            transitions_bundle_unresolved = AbstractMCMC.bundle_samples(
+                transitions, product_model, spl_full, state, Vector;
+                bundle_resolve_swaps=false
+            )
+            transitions_bundle_unresolved_inner = mapreduce(hcat, transitions_bundle_unresolved) do t
+                [MCMCTempering.outer_transition(t).transitions...]
+            end
+            @test transitions_unresolved_inner == transitions_bundle_unresolved_inner
+        end
+
+        @testset "bundle_samples with Vector{MCMCChains.Chains}" begin
+            # With `bundle_resolve_swaps=true`.
+            chains_bundle_resolved = AbstractMCMC.bundle_samples(
+                transitions, product_model, spl_full, state, Vector{MCMCChains.Chains};
+                bundle_resolve_swaps=true
+            )
+            @test eltype(chains_bundle_resolved) <: MCMCChains.Chains
+            @test params_resolved == transpose(mapreduce(Array, hcat, chains_bundle_resolved))
+
+            # With `bundle_resolve_swaps=false`.
+            chains_bundle_unresolved = AbstractMCMC.bundle_samples(
+                transitions, product_model, spl_full, state, Vector{MCMCChains.Chains};
+                bundle_resolve_swaps=false
+            )
+            @test !(eltype(chains_bundle_unresolved) isa MCMCChains.Chains)
+        end
     end
 end
