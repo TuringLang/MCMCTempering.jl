@@ -16,6 +16,21 @@ $(FIELDS)
 end
 
 """
+    TemperedTransition
+
+A transition for a tempered sampler.
+
+# Fields
+$(FIELDS)
+"""
+@concrete struct TemperedTransition
+    "transition for swap-sampler"
+    swaptransition
+    "transition for the main sampler"
+    transition
+end
+
+"""
     TemperedSampler <: AbstractMCMC.AbstractSampler
 
 A `TemperedSampler` struct wraps a sampler upon which to apply the Parallel Tempering algorithm.
@@ -39,8 +54,6 @@ Base.@kwdef struct TemperedSampler{SplT,A,SwapT,Adapt} <: AbstractMCMC.AbstractS
 end
 
 TemperedSampler(sampler, chain_to_beta; kwargs...) = TemperedSampler(; sampler, chain_to_beta, kwargs...)
-
-swapsampler(sampler::TemperedSampler) = SwapSampler(sampler.swapstrategy)
 
 # TODO: Do we need this now?
 getsampler(samplers, I...) = getindex(samplers, I...)
@@ -110,69 +123,90 @@ Return number of inverse temperatures used by `sampler`.
 """
 numtemps(sampler::TemperedSampler) = length(sampler.chain_to_beta)
 
-"""
-    tempered(sampler, inverse_temperatures; kwargs...)
-    OR
-    tempered(sampler, num_temps; swap_strategy=ReversibleSwap(), kwargs...)
+# Stepping.
+get_init_params(x, _) = x
+get_init_params(init_params::Nothing, _) = nothing
+get_init_params(init_params::AbstractVector{<:Real}, _) = copy(init_params)
+get_init_params(init_params::AbstractVector{<:AbstractVector{<:Real}}, i) = init_params[i]
 
-Return a tempered version of `sampler` using the provided `inverse_temperatures` or
-inverse temperatures generated from `num_temps` and the `swap_strategy`.
+function transition_for_chain(transition::TemperedTransition, I...)
+    chain_idx = transition.swaptransition.chain_to_process[I...]
+    return transition.transition.transitions[chain_idx]
+end
 
-# Arguments
-- `sampler` is an algorithm or sampler object to be used for underlying sampling and to apply tempering to
-- The temperature schedule can be defined either explicitly or just as an integer number of temperatures, i.e. as:
-  - `inverse_temperatures` containing a sequence of 'inverse temperatures' {β₀, ..., βₙ} where 0 ≤ βₙ < ... < β₁ < β₀ = 1
-        OR
-  - `num_temps`, specifying the integer number of inverse temperatures to include in a generated `inverse_temperatures`
-
-# Keyword arguments
-- `swap_strategy::AbstractSwapStrategy` specifies the method for swapping inverse temperatures between chains
-- `steps_per_swap::Integer` steps are carried out between each attempt at a swap
-
-# See also
-- [`TemperedSampler`](@ref)
-- For more on the swap strategies:
-    - [`AbstractSwapStrategy`](@ref)
-    - [`ReversibleSwap`](@ref)
-    - [`NonReversibleSwap`](@ref)
-    - [`SingleSwap`](@ref)
-    - [`SingleRandomSwap`](@ref)
-    - [`RandomSwap`](@ref)
-    - [`NoSwap`](@ref)
-"""
-function tempered(
-    sampler::AbstractMCMC.AbstractSampler,
-    num_temps::Integer;
-    swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
+function AbstractMCMC.step(
+    rng::Random.AbstractRNG,
+    model::AbstractMCMC.AbstractModel,
+    sampler::TemperedSampler;
     kwargs...
 )
-    return tempered(
-        sampler, generate_inverse_temperatures(num_temps, swap_strategy);
-        swap_strategy = swap_strategy,
+    # Create a `MultiSampler` and `MultiModel`.
+    multimodel = MultiModel([
+        make_tempered_model(sampler, model, sampler.chain_to_beta[i])
+        for i in 1:numtemps(sampler)
+    ])
+    multisampler = MultiSampler([getsampler(sampler, i) for i in 1:numtemps(sampler)])
+    multitransition, multistate = AbstractMCMC.step(rng, multimodel, multisampler; kwargs...)
+
+    # Make sure to collect, because we'll be using `setindex!(!)` later.
+    process_to_chain = collect(1:length(sampler.chain_to_beta))
+    # Need to `copy` because this might be mutated.
+    chain_to_process = copy(process_to_chain)
+    swapstate = SwapState(
+        multistate.states,
+        chain_to_process,
+        process_to_chain,
+        1,
+        Dict{Int,Float64}(),
+    )
+
+    swaptransition = SwapTransition(deepcopy(swapstate.chain_to_process), deepcopy(swapstate.process_to_chain))
+    return (
+        TemperedTransition(swaptransition, multitransition),
+        TemperedState(swapstate, multistate, sampler.chain_to_beta)
+    )
+end
+
+function AbstractMCMC.step(
+    rng::Random.AbstractRNG,
+    model::AbstractMCMC.AbstractModel,
+    sampler::TemperedSampler,
+    state::TemperedState;
+    kwargs...
+)
+    # Create the tempered `MultiModel`.
+    multimodel = MultiModel([make_tempered_model(sampler, model, beta) for beta in state.chain_to_beta])
+    # Create the tempered `MultiSampler`.
+    # We're assuming the user has given the samplers in an order according to the initial models.
+    multisampler = MultiSampler(samplers_by_processes(
+        ChainOrder(),
+        [getsampler(sampler, i) for i in 1:numtemps(sampler)],
+        state.swapstate
+    ))
+    # Create the composition which applies `SwapSampler` first.
+    sampler_composition = multisampler ∘ swapsampler(sampler)
+
+    # Step!
+    # NOTE: This will internally re-order the models according to processes before taking steps,
+    # hence the resulting transitions and states will be in the order of processes, as we desire.
+    transition_composition, state_composition = AbstractMCMC.step(
+        rng,
+        multimodel,
+        sampler_composition,
+        composition_state(sampler_composition, state.swapstate, state.state);
         kwargs...
     )
-end
-function tempered(
-    sampler::AbstractMCMC.AbstractSampler,
-    inverse_temperatures::Vector{<:Real};
-    swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
-    steps_per_swap::Integer=1,
-    adapt::Bool=false,
-    adapt_target::Real=0.234,
-    adapt_stepsize::Real=1,
-    adapt_eta::Real=0.66,
-    adapt_schedule=Geometric(),
-    adapt_scale=defaultscale(adapt_schedule, inverse_temperatures),
-    kwargs...
-)
-    !(adapt && typeof(swap_strategy) <: Union{RandomSwap, SingleRandomSwap}) || error("Adaptation of the inverse temperature ladder is not currently supported under the chosen swap strategy.")
-    steps_per_swap > 0 || error("`steps_per_swap` must take a positive integer value.")
-    inverse_temperatures = check_inverse_temperatures(inverse_temperatures)
-    adaptation_states = init_adaptation(
-        adapt_schedule, inverse_temperatures, adapt_target, adapt_scale, adapt_eta, adapt_stepsize
+
+    # Construct the `TemperedTransition` and `TemperedState`.
+    swaptransition = inner_transition(transition_composition)
+    outertransition = outer_transition(transition_composition)
+
+    swapstate = inner_state(state_composition)
+    outerstate = outer_state(state_composition)
+
+    return (
+        TemperedTransition(swaptransition, outertransition),
+        TemperedState(swapstate, outerstate, state.chain_to_beta)
     )
-    # NOTE: We just make a repeated sampler for `sampler_inner`.
-    # TODO: Generalize. Allow passing in a `MultiSampler`, etc.
-    sampler_inner = sampler^steps_per_swap
-    return TemperedSampler(sampler_inner, inverse_temperatures, swap_strategy, adapt, adaptation_states)
 end
+
