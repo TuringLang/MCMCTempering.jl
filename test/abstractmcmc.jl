@@ -168,7 +168,7 @@
 
     @testset "SwapSampler" begin
         # SwapSampler without tempering (i.e. in a composition and using `MultiModel`, etc.)
-        init_params = [[5.0], [5.0]]
+        initial_params = [[5.0], [5.0]]
         mdl1 = LogDensityProblemsAD.ADgradient(Val(:ForwardDiff), DistributionLogDensity(Normal(4.9999, 1)))
         mdl2 = LogDensityProblemsAD.ADgradient(Val(:ForwardDiff), DistributionLogDensity(Normal(5.0001, 1)))
         spl1 = RWMH(MvNormal(Zeros(dimension(mdl1)), I))
@@ -181,7 +181,7 @@
 
         # Sample!
         rng = Random.default_rng()
-        transition, state = AbstractMCMC.step(rng, product_model, spl_full; init_params)
+        transition, state = AbstractMCMC.step(rng, product_model, spl_full; initial_params)
         transitions = typeof(transition)[]
 
         # A bit of warm-up.

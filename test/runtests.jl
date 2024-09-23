@@ -24,7 +24,7 @@ Several properties of the tempered sampler are tested before returning:
 - `adapt_atol`: The absolute tolerance for the check of average swap acceptance rate and target swap acceptance rate. Defaults to `0.05`.
 - `mean_swap_rate_bound`: A bound on the acceptance rate of swaps performed, e.g. if set to `0.1` and `compare_mean_swap_rate=≥` then at least 10% of attempted swaps should be accepted. Defaults to `0.1`.
 - `compare_mean_swap_rate`: a binary function for comparing average swap rate against `mean_swap_rate_bound`. Defaults to `≥`.
-- `init_params`: The initial parameters to use for the sampler. Defaults to `nothing`.
+- `initial_params`: The initial parameters to use for the sampler. Defaults to `nothing`.
 - `param_names`: The names of the parameters in the chain; used to construct the resulting chain. Defaults to `missing`.
 - `progress`: Whether to show a progress bar. Defaults to `false`.
 """
@@ -41,7 +41,7 @@ function test_and_sample_model(
     adapt_target=0.234,
     adapt_rtol=0.1,
     adapt_atol=0.05,
-    init_params=nothing,
+    initial_params=nothing,
     param_names=missing,
     progress=false,
     minimum_roundtrips=nothing
@@ -65,7 +65,7 @@ function test_and_sample_model(
     # Sample.
     samples_tempered = AbstractMCMC.sample(
         model, sampler_tempered, num_iterations;
-        callback=callback, progress=progress, init_params=init_params
+        callback=callback, progress=progress, initial_params=initial_params
     )
 
     if !isnothing(minimum_roundtrips)
@@ -245,7 +245,7 @@ end
             [1.0, 1e-3],  # extreme temperatures -> don't exect much swapping to occur
             num_iterations=num_iterations,
             adapt=false,
-            init_params=[[0.0], [1000.0]],  # initialized far apart
+            initial_params=[[0.0], [1000.0]],  # initialized far apart
             # At MOST 1% of swaps should be successful.
             mean_swap_rate_bound=0.01,
             compare_mean_swap_rate=≤,
@@ -338,7 +338,7 @@ end
         # Move to unconstrained space.
         vi = DynamicPPL.link!!(DynamicPPL.VarInfo(model_dppl), model_dppl)
         # Get some initial values in unconstrained space.
-        init_params = copy(vi[:])
+        initial_params = copy(vi[:])
         # Get the parameter names.
         param_names = map(Symbol, DynamicPPL.TestUtils.varnames(model_dppl))
         # Get bijector so we can get back to unconstrained space afterwards.
@@ -349,9 +349,9 @@ end
         @testset "Tempering of models" begin
             beta = 0.5
             model_tempered = MCMCTempering.make_tempered_model(model, beta)
-            @test logdensity(model_tempered, init_params) ≈ beta * logdensity(model, init_params)
-            @test last(logdensity_and_gradient(model_tempered, init_params)) ≈
-                beta .* last(logdensity_and_gradient(model, init_params))
+            @test logdensity(model_tempered, initial_params) ≈ beta * logdensity(model, initial_params)
+            @test last(logdensity_and_gradient(model_tempered, initial_params)) ≈
+                beta .* last(logdensity_and_gradient(model, initial_params))
         end
 
         @testset "AdvancedHMC.jl" begin
@@ -360,12 +360,12 @@ end
             # Set up HMC smpler.
             initial_ϵ = 0.1
             integrator = AdvancedHMC.Leapfrog(initial_ϵ)
-            proposal = AdvancedHMC.NUTS{AdvancedHMC.MultinomialTS, AdvancedHMC.GeneralisedNoUTurn}(integrator)
+            proposal = HMCKernel(Trajectory{MultinomialTS}(integrator, GeneralisedNoUTurn()))
             metric = AdvancedHMC.DiagEuclideanMetric(LogDensityProblems.dimension(model))
             sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric)
 
             # Sample using HMC.
-            samples_hmc = sample(model, sampler_hmc, num_iterations; init_params=copy(init_params), progress=false)
+            samples_hmc = sample(model, sampler_hmc, num_iterations; initial_params=copy(initial_params), progress=false)
             chain_hmc = AbstractMCMC.bundle_samples(
                 samples_hmc, MCMCTempering.maybe_wrap_model(model), sampler_hmc, samples_hmc[1], MCMCChains.Chains;
                 param_names=param_names,
@@ -376,7 +376,7 @@ end
             sampler_tempered = MCMCTempering.TemperedSampler(sampler_hmc, [1])
             chain_tempered = sample(
                 model, sampler_tempered, num_iterations;
-                init_params=copy(init_params),
+                initial_params=copy(initial_params),
                 chain_type=MCMCChains.Chains,
                 param_names=param_names,
                 progress=false,
@@ -398,7 +398,7 @@ end
                 num_iterations=num_iterations,
                 adapt=false,
                 mean_swap_rate_bound=0.1,
-                init_params=copy(init_params),
+                initial_params=copy(initial_params),
                 param_names=param_names,
                 progress=false
             )
@@ -422,7 +422,7 @@ end
             # Sample using MALA.
             chain_mh = AbstractMCMC.sample(
                 model, sampler_mh, num_iterations;
-                init_params=copy(init_params),
+                initial_params=copy(initial_params),
                 progress=false,
                 chain_type=MCMCChains.Chains,
                 param_names=param_names,
@@ -433,7 +433,7 @@ end
             sampler_tempered = MCMCTempering.TemperedSampler(sampler_mh, [1])
             chain_tempered = sample(
                 model, sampler_tempered, num_iterations;
-                init_params=copy(init_params),
+                initial_params=copy(initial_params),
                 chain_type=MCMCChains.Chains,
                 param_names=param_names,
                 progress=false,
@@ -455,7 +455,7 @@ end
                 num_iterations=num_iterations,
                 adapt=false,
                 mean_swap_rate_bound=0.1,
-                init_params=copy(init_params),
+                initial_params=copy(initial_params),
                 param_names=param_names
             )
             map_parameters!(b, chain_tempered)

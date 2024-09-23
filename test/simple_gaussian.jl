@@ -8,7 +8,7 @@
     tempered_dists = [MvNormal(Zeros(1), I / β) for β in inverse_temperatures]
     tempered_multimodel = MCMCTempering.MultiModel(map(LogDensityModel ∘ DistributionLogDensity, tempered_dists))
 
-    init_params = zeros(length(μ))
+    initial_params = zeros(length(μ))
 
     num_samples = 1_000
     num_burnin = num_samples ÷ 2
@@ -24,7 +24,7 @@
     @testset "TemperedSampler" begin
         chains_product = sample(
             DistributionLogDensity(tempered_dists[1]), rwmh_tempered, num_samples;
-            init_params,
+            initial_params,
             bundle_resolve_swaps=true,
             chain_type=Vector{MCMCChains.Chains},
             progress=false,
@@ -37,7 +37,7 @@
     @testset "MultiSampler without swapping" begin
         chains_product = sample(
             tempered_multimodel, rwmh_product, num_samples;
-            init_params,
+            initial_params,
             chain_type=Vector{MCMCChains.Chains},
             progress=false,
             discard_initial=num_burnin,
@@ -49,7 +49,7 @@
     @testset "MultiSampler with swapping (saveall=true)" begin
         chains_product = sample(
             tempered_multimodel, rwmh_product_with_swap, num_samples;
-            init_params,
+            initial_params,
             bundle_resolve_swaps=true,
             chain_type=Vector{MCMCChains.Chains},
             progress=false,
@@ -62,7 +62,7 @@
     @testset "MultiSampler with swapping (saveall=true)" begin
         chains_product = sample(
             tempered_multimodel, Setfield.@set(rwmh_product_with_swap.saveall = Val(false)), num_samples;
-            init_params,
+            initial_params,
             chain_type=Vector{MCMCChains.Chains},
             progress=false,
             discard_initial=num_burnin,
