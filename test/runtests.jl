@@ -360,7 +360,9 @@ end
             # Set up HMC smpler.
             initial_ϵ = 0.1
             integrator = AdvancedHMC.Leapfrog(initial_ϵ)
-            proposal = HMCKernel(Trajectory{MultinomialTS}(integrator, GeneralisedNoUTurn()))
+            proposal = AdvancedHMC.HMCKernel(AdvancedHMC.Trajectory{AdvancedHMC.MultinomialTS}(
+                integrator, AdvancedHMC.GeneralisedNoUTurn()
+            ))
             metric = AdvancedHMC.DiagEuclideanMetric(LogDensityProblems.dimension(model))
             sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric)
 

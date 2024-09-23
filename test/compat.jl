@@ -10,7 +10,11 @@ MCMCTempering.getparams_and_logprob(transition::AdvancedMH.GradientTransition) =
 function MCMCTempering.setparams_and_logprob!!(model, transition::AdvancedMH.GradientTransition, params, lp)
     # NOTE: We have to re-compute the gradient here because this will be used in the subsequent `step` for
     # the MALA sampler.
-    return AdvancedMH.GradientTransition(params, AdvancedMH.logdensity_and_gradient(model, params)...)
+    return AdvancedMH.GradientTransition(
+        params,
+        AdvancedMH.logdensity_and_gradient(model, params)...,
+        transition.accepted
+    )
 end
 
 # AdvancedHMC.jl
