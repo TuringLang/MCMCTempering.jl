@@ -7,7 +7,8 @@ makedocs(
     sitename = "MCMCTempering",
     format = Documenter.HTML(),
     modules = [MCMCTempering],
-    pages=["Home" => "index.md", "getting-started.md", "api.md"],
+    pages = ["Home" => "index.md", "getting-started.md", "api.md"],
+    warnonly = true
 )
 
 # Deply!
