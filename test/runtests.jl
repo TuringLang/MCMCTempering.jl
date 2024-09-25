@@ -336,11 +336,20 @@ end
 
     @testset "Turing.jl" begin
         # Instantiate model.
-        model_dppl = DynamicPPL.TestUtils.demo_assume_dot_observe()
+        DynamicPPL.@model function demo_model(x)
+            s ~ Exponential()
+            m ~ Normal(0, s)
+            x .~ Normal(m, s)
+        end
+        xs_true = rand(Normal(2, 1), 100)
+        model_dppl = demo_model(xs_true)
+
         # Move to unconstrained space.
-        vi = DynamicPPL.link!!(DynamicPPL.VarInfo(model_dppl), model_dppl)
+        vi = DynamicPPL.VarInfo(model_dppl)
         # Get some initial values in unconstrained space.
         initial_params = copy(vi[:])
+        # Move to unconstrained space.
+        vi = DynamicPPL.link!!(vi, model_dppl)
         # Get the parameter names.
         param_names = map(Symbol, DynamicPPL.TestUtils.varnames(model_dppl))
         # Get bijector so we can get back to unconstrained space afterwards.
