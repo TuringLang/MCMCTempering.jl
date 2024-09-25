@@ -44,7 +44,8 @@ function test_and_sample_model(
     initial_params=nothing,
     param_names=missing,
     progress=false,
-    minimum_roundtrips=nothing
+    minimum_roundtrips=nothing,
+    kwargs...
 )
     # Make the tempered sampler.
     sampler_tempered = tempered(
@@ -65,7 +66,8 @@ function test_and_sample_model(
     # Sample.
     samples_tempered = AbstractMCMC.sample(
         model, sampler_tempered, num_iterations;
-        callback=callback, progress=progress, initial_params=initial_params
+        callback=callback, progress=progress, initial_params=initial_params,
+        kwargs...
     )
 
     if !isnothing(minimum_roundtrips)
@@ -364,10 +366,15 @@ end
                 integrator, AdvancedHMC.GeneralisedNoUTurn()
             ))
             metric = AdvancedHMC.DiagEuclideanMetric(LogDensityProblems.dimension(model))
-            sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric)
+            sampler_hmc = AdvancedHMC.HMCSampler(proposal, metric, AdvancedHMC.NoAdaptation())
 
             # Sample using HMC.
-            samples_hmc = sample(model, sampler_hmc, num_iterations; initial_params=copy(initial_params), progress=false)
+            samples_hmc = sample(
+                model, sampler_hmc, num_iterations;
+                n_adapts=0,  # FIXME(torfjelde): Remove once AHMC.jl has fixed.
+                initial_params=copy(initial_params),
+                progress=false
+            )
             chain_hmc = AbstractMCMC.bundle_samples(
                 samples_hmc, MCMCTempering.maybe_wrap_model(model), sampler_hmc, samples_hmc[1], MCMCChains.Chains;
                 param_names=param_names,
@@ -378,6 +385,7 @@ end
             sampler_tempered = MCMCTempering.TemperedSampler(sampler_hmc, [1])
             chain_tempered = sample(
                 model, sampler_tempered, num_iterations;
+                n_adapts=0,  # FIXME(torfjelde): Remove once AHMC.jl has fixed.
                 initial_params=copy(initial_params),
                 chain_type=MCMCChains.Chains,
                 param_names=param_names,
@@ -402,7 +410,8 @@ end
                 mean_swap_rate_bound=0.1,
                 initial_params=copy(initial_params),
                 param_names=param_names,
-                progress=false
+                progress=false,
+                n_adapts=0,  # FIXME(torfjelde): Remove once AHMC.jl has fixed.
             )
             map_parameters!(b, chain_tempered)
             compare_chains(
