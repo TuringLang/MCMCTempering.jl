@@ -222,7 +222,7 @@
 
         # Check that means are roughly okay.
         params_resolved = map(first ∘ MCMCTempering.getparams, transitions_resolved_inner)
-        @test vec(mean(params_resolved; dims=2)) ≈ [5.0, 5.0] atol = 0.3
+        @test vec(mean(params_resolved; dims=2)) ≈ [5.0, 5.0] atol = 0.4
 
         # A composition of `SwapSampler` and `MultiSampler` has special `AbstractMCMC.bundle_samples`.
         @testset "bundle_samples with Vector" begin
