@@ -16,18 +16,18 @@ function to_dict(c::MCMCChains.ChainDataFrame, col::Symbol)
 end
 
 """
-    atol_for_chain(chain; significance=1e-1, kind=Statistics.mean)
+    atol_for_chain(chain; significance=1e-2, kind=Statistics.mean)
 
 Return a dictionary of absolute tolerances for each parameter in `chain`, computed
 as the confidence interval width for the mean of the parameter with `significance`.
 """
-function atol_for_chain(chain; significance=1e-1, kind=Statistics.mean)
+function atol_for_chain(chain; significance=1e-2, kind=Statistics.mean, min_atol=Inf)
     param_names = names(chain, :parameters)
     # Can reject H0 if, say, `abs(mean(chain2) - mean(chain1)) > confidence_width`.
     # Or alternatively, compare means but with `atol` set to the `confidence_width`.
     # NOTE: Failure to reject, i.e. passing the tests, does not imply that the means are equal.
     mcse = to_dict(MCMCChains.mcse(chain; kind), :mcse)
-    return Dict(sym => quantile(Normal(0, mcse[sym]), 1 - significance/2) for sym in param_names)
+    return Dict(sym => min(min_atol, quantile(Normal(0, mcse[sym]), 1 - significance/2)) for sym in param_names)
 end
 
 thin_to(chain, n) = chain[1:length(chain) ÷ n:end]
