@@ -16,12 +16,12 @@ function to_dict(c::MCMCChains.ChainDataFrame, col::Symbol)
 end
 
 """
-    atol_for_chain(chain; significance=1e-2, kind=Statistics.mean)
+    atol_for_chain(chain; significance=1e-1, kind=Statistics.mean)
 
 Return a dictionary of absolute tolerances for each parameter in `chain`, computed
 as the confidence interval width for the mean of the parameter with `significance`.
 """
-function atol_for_chain(chain; significance=1e-2, kind=Statistics.mean)
+function atol_for_chain(chain; significance=1e-1, kind=Statistics.mean)
     param_names = names(chain, :parameters)
     # Can reject H0 if, say, `abs(mean(chain2) - mean(chain1)) > confidence_width`.
     # Or alternatively, compare means but with `atol` set to the `confidence_width`.
@@ -48,7 +48,7 @@ end
 function test_means(chain::MCMCChains.Chains, mean_true::AbstractDict; n=length(chain), kwargs...)
     chain = thin_to(chain, n)
     atol = atol_for_chain(chain; kwargs...)
-    @info "mean" [isapprox(mean(chain[sym]), 0, atol=atol[sym]) for sym in names(chain, :parameters)]
+    @info "mean" [(mean(chain[sym]), atol[sym]) for sym in names(chain, :parameters)]
     @test all(isapprox(mean(chain[sym]), 0, atol=atol[sym]) for sym in names(chain, :parameters))
 end
 
