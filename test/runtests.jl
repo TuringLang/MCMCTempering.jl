@@ -346,10 +346,10 @@ end
 
         # Move to unconstrained space.
         vi = DynamicPPL.VarInfo(model_dppl)
-        # Get some initial values in unconstrained space.
-        initial_params = copy(vi[:])
         # Move to unconstrained space.
         vi = DynamicPPL.link!!(vi, model_dppl)
+        # Get some initial values in unconstrained space.
+        initial_params = rand(length(vi[:]))
         # Get the parameter names.
         param_names = map(Symbol, DynamicPPL.TestUtils.varnames(model_dppl))
         # Get bijector so we can get back to unconstrained space afterwards.
