@@ -48,6 +48,7 @@ end
 function test_means(chain::MCMCChains.Chains, mean_true::AbstractDict; n=length(chain), kwargs...)
     chain = thin_to(chain, n)
     atol = atol_for_chain(chain; kwargs...)
+    @info "mean" [isapprox(mean(chain[sym]), 0, atol=atol[sym]) for sym in names(chain, :parameters)]
     @test all(isapprox(mean(chain[sym]), 0, atol=atol[sym]) for sym in names(chain, :parameters))
 end
 
