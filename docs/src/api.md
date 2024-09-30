@@ -70,6 +70,17 @@ MCMCTempering.swap_step
 
 ## Other samplers
 
+To make a sampler work with MCMCTempering.jl, the sampler needs to implement a few methods:
+
+```@docs
+MCMCTempering.getparams
+MCMCTempering.getlogprob
+MCMCTempering.getparams_and_logprob
+MCMCTempering.setparams_and_logprob!!
+```
+
+Other useful methods are:
+
 ```@docs
 MCMCTempering.saveall
 ```

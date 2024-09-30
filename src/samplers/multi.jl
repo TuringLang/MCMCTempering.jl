@@ -149,16 +149,16 @@ function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model::MultiModel,
     sampler::MultiSampler;
-    init_params=nothing,
+    initial_params=nothing,
     kwargs...
 )
     @assert length(model.models) == length(sampler.samplers) "Number of models and samplers must be equal"
 
-    # TODO: Handle `init_params` properly. Make sure that they respect the container-types used in
+    # TODO: Handle `initial_params` properly. Make sure that they respect the container-types used in
     # `MultiModel` and `MultiSampler`.
-    init_params_multi = initparams(model, init_params)
-    transition_and_states = asyncmap(model.models, sampler.samplers, init_params_multi) do model, sampler, init_params
-        AbstractMCMC.step(rng, model, sampler; init_params, kwargs...)
+    initial_params_multi = initparams(model, initial_params)
+    transition_and_states = asyncmap(model.models, sampler.samplers, initial_params_multi) do model, sampler, initial_params
+        AbstractMCMC.step(rng, model, sampler; initial_params, kwargs...)
     end
 
     return MultipleTransitions(map(first, transition_and_states)), MultipleStates(map(last, transition_and_states))

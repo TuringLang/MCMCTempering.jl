@@ -74,13 +74,13 @@ Let's instead try to use a _tempered_ version of `RWMH`. _But_ before we do that
 
 To do that we need to implement two methods. First we need to tell MCMCTempering how to extract the parameters, and potentially the log-probabilities, from a `AdvancedMH.Transition`:
 
-```@docs
+```@docs; canonical=false
 MCMCTempering.getparams_and_logprob
 ```
 
 And similarly, we need a way to _update_ the parameters and the log-probabilities of a `AdvancedMH.Transition`:
 
-```@docs
+```@docs; canonical=false
 MCMCTempering.setparams_and_logprob!!
 ```
 
@@ -159,10 +159,7 @@ using AdvancedHMC: AdvancedHMC
 using ForwardDiff: ForwardDiff # for automatic differentation of the logdensity
 
 # Creation of the sampler.
-metric = AdvancedHMC.DiagEuclideanMetric(1)
-integrator = AdvancedHMC.Leapfrog(0.1)
-proposal = AdvancedHMC.StaticTrajectory(integrator, 8)
-sampler = AdvancedHMC.HMCSampler(proposal, metric)
+sampler = AdvancedHMC.HMC(0.1, 8)
 sampler_tempered = MCMCTempering.TemperedSampler(sampler, inverse_temperatures)
 
 # Sample!
@@ -172,6 +169,7 @@ chain = sample(
     target_model, sampler, num_iterations;
     chain_type=MCMCChains.Chains,
     param_names=["x"],
+    n_adapts=0,  # HACK: need this to make AdvancedHMC.jl happy :/
 )
 plot(chain, size=figsize)
 ```
@@ -205,7 +203,8 @@ chain_tempered_all = sample(
     StableRNG(42),
     target_model, sampler_tempered, num_iterations;
     chain_type=Vector{MCMCChains.Chains},
-    param_names=["x"]
+    param_names=["x"],
+    n_adapts=0,  # HACK: need this to make AdvancedHMC.jl happy :/
 );
 ```
 
@@ -289,7 +288,8 @@ chain_tempered_all = sample(
     StableRNG(42),
     target_model, sampler_tempered, num_iterations;
     chain_type=Vector{MCMCChains.Chains},
-    param_names=["x"]
+    param_names=["x"],
+    n_adapts=0,  # HACK: need this to make AdvancedHMC.jl happy :/
 );
 ```
 
