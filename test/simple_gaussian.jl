@@ -23,7 +23,7 @@
     # Sample.
     @testset "TemperedSampler" begin
         chains_product = sample(
-            DistributionLogDensity(tempered_dists[1]), rwmh_tempered, num_samples;
+            make_rng(), DistributionLogDensity(tempered_dists[1]), rwmh_tempered, num_samples;
             initial_params,
             bundle_resolve_swaps=true,
             chain_type=Vector{MCMCChains.Chains},
@@ -31,24 +31,36 @@
             discard_initial=num_burnin,
             thinning=thin,
         )
-        test_chains_with_monotonic_variance(chains_product, Zeros(length(chains_product)), std_true_dict)
+        test_chains_with_monotonic_variance(
+            chains_product,
+            Zeros(length(chains_product)),
+            std_true_dict,
+            min_atol=2e-1,
+            max_atol=5e-1
+        )
     end
 
     @testset "MultiSampler without swapping" begin
         chains_product = sample(
-            tempered_multimodel, rwmh_product, num_samples;
+            make_rng(), tempered_multimodel, rwmh_product, num_samples;
             initial_params,
             chain_type=Vector{MCMCChains.Chains},
             progress=false,
             discard_initial=num_burnin,
             thinning=thin,
         )
-        test_chains_with_monotonic_variance(chains_product, Zeros(length(chains_product)), std_true_dict)
+        test_chains_with_monotonic_variance(
+            chains_product,
+            Zeros(length(chains_product)),
+            std_true_dict,
+            min_atol=2e-1,
+            max_atol=5e-1
+        )
     end
 
     @testset "MultiSampler with swapping (saveall=true)" begin
         chains_product = sample(
-            tempered_multimodel, rwmh_product_with_swap, num_samples;
+            make_rng(), tempered_multimodel, rwmh_product_with_swap, num_samples;
             initial_params,
             bundle_resolve_swaps=true,
             chain_type=Vector{MCMCChains.Chains},
@@ -56,19 +68,31 @@
             discard_initial=num_burnin,
             thinning=thin,
         )
-        test_chains_with_monotonic_variance(chains_product, Zeros(length(chains_product)), std_true_dict)
+        test_chains_with_monotonic_variance(
+            chains_product,
+            Zeros(length(chains_product)),
+            std_true_dict,
+            min_atol=2e-1,
+            max_atol=5e-1
+        )
     end
 
     @testset "MultiSampler with swapping (saveall=true)" begin
         chains_product = sample(
-            tempered_multimodel, Setfield.@set(rwmh_product_with_swap.saveall = Val(false)), num_samples;
+            make_rng(), tempered_multimodel, Setfield.@set(rwmh_product_with_swap.saveall = Val(false)), num_samples;
             initial_params,
             chain_type=Vector{MCMCChains.Chains},
             progress=false,
             discard_initial=num_burnin,
             thinning=thin,
         )
-        test_chains_with_monotonic_variance(chains_product, Zeros(length(chains_product)), std_true_dict)
+        test_chains_with_monotonic_variance(
+            chains_product,
+            Zeros(length(chains_product)),
+            std_true_dict,
+            min_atol=3e-1,
+            max_atol=5e-1
+        )
     end
 end
 

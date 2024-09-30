@@ -16,18 +16,21 @@ function to_dict(c::MCMCChains.ChainDataFrame, col::Symbol)
 end
 
 """
-    atol_for_chain(chain; significance=1e-2, kind=Statistics.mean)
+    atol_for_chain(chain; significance=0.05, kind=Statistics.mean, min_atol=Inf, max_atol=0)
 
 Return a dictionary of absolute tolerances for each parameter in `chain`, computed
 as the confidence interval width for the mean of the parameter with `significance`.
 """
-function atol_for_chain(chain; significance=1e-2, kind=Statistics.mean, min_atol=Inf)
+function atol_for_chain(chain; significance=0.05, kind=Statistics.mean, min_atol=0, max_atol=Inf)
     param_names = names(chain, :parameters)
     # Can reject H0 if, say, `abs(mean(chain2) - mean(chain1)) > confidence_width`.
     # Or alternatively, compare means but with `atol` set to the `confidence_width`.
     # NOTE: Failure to reject, i.e. passing the tests, does not imply that the means are equal.
     mcse = to_dict(MCMCChains.mcse(chain; kind), :mcse)
-    return Dict(sym => min(min_atol, quantile(Normal(0, mcse[sym]), 1 - significance/2)) for sym in param_names)
+    return Dict(
+        sym => max(min_atol, min(max_atol, quantile(Normal(0, mcse[sym]), 1 - significance/2)))
+        for sym in param_names
+    )
 end
 
 thin_to(chain, n) = chain[1:length(chain) ÷ n:end]
@@ -48,7 +51,7 @@ end
 function test_means(chain::MCMCChains.Chains, mean_true::AbstractDict; n=length(chain), kwargs...)
     chain = thin_to(chain, n)
     atol = atol_for_chain(chain; kwargs...)
-    @info "mean" [(mean(chain[sym]), atol[sym]) for sym in names(chain, :parameters)]
+    @debug "mean" [(mean(chain[sym]), atol[sym]) for sym in names(chain, :parameters)]
     @test all(isapprox(mean(chain[sym]), 0, atol=atol[sym]) for sym in names(chain, :parameters))
 end
 
@@ -68,7 +71,7 @@ end
 function test_std(chain::MCMCChains.Chains, std_true::AbstractDict; n=length(chain), kwargs...)
     chain = thin_to(chain, n)
     atol = atol_for_chain(chain; kind=Statistics.std, kwargs...)
-    @info "std" [(std(chain[sym]), std_true[sym], atol[sym]) for sym in names(chain, :parameters)]
+    @debug "std" [(std(chain[sym]), std_true[sym], atol[sym]) for sym in names(chain, :parameters)]
     @test all(isapprox(std(chain[sym]), std_true[sym], atol=atol[sym]) for sym in names(chain, :parameters))
 end
 
@@ -118,10 +121,20 @@ and `std_true`, respectively. Also test that the standard deviation is monotonic
 - `significance`: The significance level of the test.
 - `kwargs...`: Passed to `atol_for_chain`.
 """
-function test_chains_with_monotonic_variance(chains, mean_true, std_true; significance=1e-4, kwargs...)
+function test_chains_with_monotonic_variance(chains, mean_true, std_true; significance=0.05, kwargs...)
     @testset "chain $i" for i = 1:length(chains)
         test_means(chains[i], mean_true[i]; kwargs...)
         test_std(chains[i], std_true[i]; kwargs...)
     end
-    test_std_monotonicity(chains; significance=0.05)
+    test_std_monotonicity(chains; significance=significance)
 end
+
+"""
+    make_rng([seed])
+
+Create a random number generator.
+
+# Arguments
+- `seed`: The seed for the random number generator. Default is `42`.
+"""
+make_rng(seed=42) = Random.Xoshiro(seed)

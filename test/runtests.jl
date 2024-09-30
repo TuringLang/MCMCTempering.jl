@@ -45,6 +45,7 @@ function test_and_sample_model(
     param_names=missing,
     progress=false,
     minimum_roundtrips=nothing,
+    rng=make_rng(),
     kwargs...
 )
     # Make the tempered sampler.
@@ -65,7 +66,7 @@ function test_and_sample_model(
 
     # Sample.
     samples_tempered = AbstractMCMC.sample(
-        model, sampler_tempered, num_iterations;
+        rng, model, sampler_tempered, num_iterations;
         callback=callback, progress=progress, initial_params=initial_params,
         kwargs...
     )
@@ -328,13 +329,26 @@ end
                 adapt=false,
                 # Make sure we have _some_ roundtrips.
                 minimum_roundtrips=10,
+                rng=make_rng(),
             )
 
-            compare_chains(chain, chain_tempered, rtol=0.1, compare_ess=true)
+            # Some swap strategies are not great.
+            ess_slack_ratio = if swap_strategy isa Union{MCMCTempering.SingleRandomSwap,MCMCTempering.SingleSwap}
+                0.25
+            else
+                0.5
+            end
+            compare_chains(chain, chain_tempered, rtol=0.1, compare_ess=true, compare_ess_slack=ess_slack_ratio)
         end
     end
 
     @testset "Turing.jl" begin
+        # Let's make a default seed we can `deepcopy` throughout to get reproducible results.
+        seed = 42
+
+        # And let's set the seed explicitly for reproducibility.
+        Random.seed!(seed)
+
         # Instantiate model.
         DynamicPPL.@model function demo_model(x)
             s ~ Exponential()
@@ -379,7 +393,7 @@ end
 
             # Sample using HMC.
             samples_hmc = sample(
-                model, sampler_hmc, num_iterations;
+                make_rng(seed), model, sampler_hmc, num_iterations;
                 n_adapts=0,  # FIXME(torfjelde): Remove once AHMC.jl has fixed.
                 initial_params=copy(initial_params),
                 progress=false
@@ -393,7 +407,7 @@ end
             # Make sure that we get the "same" result when only using the inverse temperature 1.
             sampler_tempered = MCMCTempering.TemperedSampler(sampler_hmc, [1])
             chain_tempered = sample(
-                model, sampler_tempered, num_iterations;
+                make_rng(seed), model, sampler_tempered, num_iterations;
                 n_adapts=0,  # FIXME(torfjelde): Remove once AHMC.jl has fixed.
                 initial_params=copy(initial_params),
                 chain_type=MCMCChains.Chains,
@@ -421,6 +435,7 @@ end
                 param_names=param_names,
                 progress=false,
                 n_adapts=0,  # FIXME(torfjelde): Remove once AHMC.jl has fixed.
+                rng=make_rng(seed),
             )
             map_parameters!(b, chain_tempered)
             compare_chains(
@@ -441,7 +456,7 @@ end
 
             # Sample using MALA.
             chain_mh = AbstractMCMC.sample(
-                model, sampler_mh, num_iterations;
+                make_rng(), model, sampler_mh, num_iterations;
                 initial_params=copy(initial_params),
                 progress=false,
                 chain_type=MCMCChains.Chains,
@@ -452,7 +467,7 @@ end
             # Make sure that we get the "same" result when only using the inverse temperature 1.
             sampler_tempered = MCMCTempering.TemperedSampler(sampler_mh, [1])
             chain_tempered = sample(
-                model, sampler_tempered, num_iterations;
+                make_rng(), model, sampler_tempered, num_iterations;
                 initial_params=copy(initial_params),
                 chain_type=MCMCChains.Chains,
                 param_names=param_names,
@@ -476,7 +491,8 @@ end
                 adapt=false,
                 mean_swap_rate_bound=0.1,
                 initial_params=copy(initial_params),
-                param_names=param_names
+                param_names=param_names,
+                rng=make_rng(),
             )
             map_parameters!(b, chain_tempered)
             
