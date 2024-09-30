@@ -305,7 +305,7 @@ end
         # Set up our sampler with a joint multivariate Normal proposal.
         sampler = RWMH(MvNormal(zeros(d), Diagonal(σ_true .^ 2)))
         # Sample for the non-tempered model for comparison.
-        samples = AbstractMCMC.sample(model, sampler, num_iterations; progress=false)
+        samples = AbstractMCMC.sample(make_rng(), model, sampler, num_iterations; progress=false)
         chain = AbstractMCMC.bundle_samples(
             samples, MCMCTempering.maybe_wrap_model(model), sampler, samples[1], MCMCChains.Chains
         )
