@@ -19,4 +19,3 @@ using Turing: Turing, DynamicPPL
 
 include("utils.jl")
 include("test_utils.jl")
-include("compat.jl")
