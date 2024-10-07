@@ -36,7 +36,7 @@ LogDensityProblems = "2"
 MCMCChains = "5, 6"
 ProgressLogging = "0.1"
 Setfield = "0.7, 0.8, 1"
-julia = "1"
+julia = "1.9"
 
 [extras]
 AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
