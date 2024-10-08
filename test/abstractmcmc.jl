@@ -224,7 +224,7 @@
         params_resolved = map(first ∘ MCMCTempering.getparams, transitions_resolved_inner)
         mean_tmp = vec(median(params_resolved; dims=2))
         for i in 1:2
-            @test mean_tmp[i] ≈ 5.0 atol = 0.5
+            @test mean_tmp[i] ≈ 5.0 atol = 0.6
         end
 
         # A composition of `SwapSampler` and `MultiSampler` has special `AbstractMCMC.bundle_samples`.

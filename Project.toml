@@ -16,8 +16,18 @@ ProgressLogging = "33c8b6b6-d38a-422a-b730-caa89a2f386c"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 
+[weakdeps]
+AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
+AdvancedMH = "5b7e9947-ddc0-4b3f-9b55-0d8042f74170"
+
+[extensions]
+MCMCTemperingAdvancedHMCExt = ["AdvancedHMC"]
+MCMCTemperingAdvancedMHExt = ["AdvancedMH"]
+
 [compat]
 AbstractMCMC = "5"
+AdvancedHMC = "0.6"
+AdvancedMH = "0.8"
 ConcreteStructs = "0.2"
 Distributions = "0.24, 0.25"
 DocStringExtensions = "0.8, 0.9"
@@ -26,4 +36,8 @@ LogDensityProblems = "2"
 MCMCChains = "5, 6"
 ProgressLogging = "0.1"
 Setfield = "0.7, 0.8, 1"
-julia = "1"
+julia = "1.9"
+
+[extras]
+AdvancedHMC = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
+AdvancedMH = "5b7e9947-ddc0-4b3f-9b55-0d8042f74170"
