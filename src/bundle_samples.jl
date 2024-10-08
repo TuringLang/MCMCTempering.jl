@@ -9,7 +9,7 @@ function bundle_nontempered_samples(
 ) where {T}
     # Create the same model and sampler as we do in the initial step for `TemperedSampler`.
     multimodel = MultiModel([
-        make_tempered_model(sampler, model, sampler.chain_to_beta[i])
+        make_tempered_model(sampler.temperingstrategy, sampler, model, sampler.chain_to_beta[i])
         for i in 1:numtemps(sampler)
     ])
     multisampler = MultiSampler([getsampler(sampler, i) for i in 1:numtemps(sampler)])

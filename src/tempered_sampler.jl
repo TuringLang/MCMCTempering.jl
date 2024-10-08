@@ -39,13 +39,15 @@ A `TemperedSampler` struct wraps a sampler upon which to apply the Parallel Temp
 
 $(FIELDS)
 """
-Base.@kwdef struct TemperedSampler{SplT,A,SwapT,Adapt} <: AbstractMCMC.AbstractSampler
+Base.@kwdef struct TemperedSampler{SplT,A,SwapT,TemperT,Adapt} <: AbstractMCMC.AbstractSampler
     "sampler(s) used to target the tempered distributions"
     sampler::SplT
     "collection of inverse temperatures β; β[i] correponds i-th tempered model"
     chain_to_beta::A
     "strategy to use for swapping"
     swapstrategy::SwapT=ReversibleSwap()
+    "strategy to use for tempering"
+    temperingstrategy::TemperT=PowerTemperingStrategy()
     # TODO: Remove `adapt` and just consider `adaptation_states=nothing` as no adaptation.
     "boolean flag specifying whether or not to adapt"
     adapt=false
@@ -93,7 +95,7 @@ state_for_process(state::TemperedState, I...) = state_for_process(state.swapstat
 
 # Here we make the model(s) using the temperatures.
 function model_for_process(sampler::TemperedSampler, model, state::TemperedState, I...)
-    return make_tempered_model(sampler, model, beta_for_process(state, I...))
+    return make_tempered_model(sampler.temperingstrategy, sampler, model, beta_for_process(state, I...))
 end
 
 """
@@ -144,7 +146,7 @@ function AbstractMCMC.step(
 )
     # Create a `MultiSampler` and `MultiModel`.
     multimodel = MultiModel([
-        make_tempered_model(sampler, model, sampler.chain_to_beta[i])
+        make_tempered_model(sampler.temperingstrategy, sampler, model, sampler.chain_to_beta[i])
         for i in 1:numtemps(sampler)
     ])
     multisampler = MultiSampler([getsampler(sampler, i) for i in 1:numtemps(sampler)])
@@ -177,7 +179,7 @@ function AbstractMCMC.step(
     kwargs...
 )
     # Create the tempered `MultiModel`.
-    multimodel = MultiModel([make_tempered_model(sampler, model, beta) for beta in state.chain_to_beta])
+    multimodel = MultiModel([make_tempered_model(sampler.temperingstrategy, sampler, model, beta) for beta in state.chain_to_beta])
     # Create the tempered `MultiSampler`.
     # We're assuming the user has given the samplers in an order according to the initial models.
     multisampler = MultiSampler(samplers_by_processes(

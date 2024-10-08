@@ -131,8 +131,8 @@ end
 
 # But for tempered versions, we can do better!
 function compute_logdensities(
-    model::AbstractMCMC.LogDensityModel{<:TemperedLogDensityProblem},
-    model_other::AbstractMCMC.LogDensityModel{<:TemperedLogDensityProblem},
+    model::AbstractMCMC.LogDensityModel{<:PowerTemperedLogDensityProblem},
+    model_other::AbstractMCMC.LogDensityModel{<:PowerTemperedLogDensityProblem},
     state,
     state_other,
 )

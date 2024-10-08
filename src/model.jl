@@ -1,32 +1,55 @@
+
 """
-    make_tempered_model([sampler, ]model, beta)
+    AbstractTemperingStrategy
+
+Abstract type for tempering strategies.
+
+# Implementations
+- [`PowerTemperingStrategy`](@ref)
+"""
+abstract type AbstractTemperingStrategy end
+
+"""
+    make_tempered_model(tempering, [sampler, ]model, beta)
 
 Return an instance representing a `model` tempered with `beta`.
 
 The return-type depends on its usage in [`compute_logdensities`](@ref).
 """
-make_tempered_model(sampler, model, beta) = make_tempered_model(model, beta)
-function make_tempered_model(model, beta)
+make_tempered_model(tempering, sampler, model, beta) = make_tempered_model(tempering, model, beta)
+
+
+# `PowerTemperingStrategy`.
+"""
+    PowerTemperingStrategy <: AbstractTemperingStrategy
+
+A tempering strategy that raises the entire log-density to the power of `beta`.
+"""
+struct PowerTemperingStrategy <: AbstractTemperingStrategy end
+
+function make_tempered_model(::PowerTemperingStrategy, model, beta)
     if !implements_logdensity(model)
         error("`make_tempered_model` is not implemented for $(typeof(model)); either implement explicitly, or implement the LogDensityProblems.jl interface for `model`")
     end
 
-    return TemperedLogDensityProblem(model, beta)
+    return PowerTemperedLogDensityProblem(model, beta)
 end
-function make_tempered_model(model::AbstractMCMC.LogDensityModel, beta)
-    return AbstractMCMC.LogDensityModel(TemperedLogDensityProblem(model.logdensity, beta))
+function make_tempered_model(::PowerTemperingStrategy, model::AbstractMCMC.LogDensityModel, beta)
+    return AbstractMCMC.LogDensityModel(PowerTemperedLogDensityProblem(model.logdensity, beta))
 end
 
-
+# `PathTemperingStrategy`.
 """
-    logdensity(model, x)
+    PathTemperingStrategy <: AbstractTemperingStrategy
 
-Return the log-density of `model` at `x`.
+A tempering strategy that interpolates between some reference log-density and the target log-density.
 """
-function logdensity(model, x)
+struct PathTemperingStrategy <: AbstractTemperingStrategy end
+
+function make_tempered_model(tempering::PathTemperingStrategy, model, beta)
     if !implements_logdensity(model)
-        error("`logdensity` is not implemented for `$(typeof(model))`; either implement explicitly, or implement the LogDensityProblems.jl interface for `model`")
+        error("`make_tempered_model` is not implemented for $(typeof(model)); either implement explicitly, or implement the LogDensityProblems.jl interface for `model`")
     end
-    return LogDensityProblems.logdensity(model, x)
+
+    return PowerTemperedLogDensityProblem(model, beta)
 end
-logdensity(model::AbstractMCMC.LogDensityModel, x) = LogDensityProblems.logdensity(model.logdensity, x)
