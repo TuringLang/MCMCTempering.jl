@@ -43,6 +43,11 @@ implements_logdensity(x) = LogDensityProblems.capabilities(x) !== nothing
 maybe_wrap_model(model) = implements_logdensity(model) ? AbstractMCMC.LogDensityModel(model) : model
 maybe_wrap_model(model::AbstractMCMC.LogDensityModel) = model
 
+function supports_adaptation(strategy::Union{RandomSwap, SingleRandomSwap, NoSwap})
+    throw(ValueError("Adaptation of the inverse temperature ladder is not currently supported under the chosen swap strategy $(strategy)."))
+end
+supports_adaptation(::AbstractSwapStrategy) = true
+
 """
     tempered(sampler, inverse_temperatures; kwargs...)
     OR
@@ -98,7 +103,7 @@ function tempered(
     adapt_scale=defaultscale(adapt_schedule, inverse_temperatures),
     kwargs...
 )
-    !(adapt && typeof(swap_strategy) <: Union{RandomSwap, SingleRandomSwap}) || error("Adaptation of the inverse temperature ladder is not currently supported under the chosen swap strategy.")
+    adapt && supports_adaptation(swap_strategy)
     steps_per_swap > 0 || error("`steps_per_swap` must take a positive integer value.")
     inverse_temperatures = check_inverse_temperatures(inverse_temperatures)
     adaptation_states = init_adaptation(
