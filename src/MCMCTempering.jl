@@ -38,10 +38,6 @@ export tempered,
     RandomSwap,
     NoSwap
 
-# TODO: Should we make this trait-based instead?
-implements_logdensity(x) = LogDensityProblems.capabilities(x) !== nothing
-maybe_wrap_model(model) = implements_logdensity(model) ? AbstractMCMC.LogDensityModel(model) : model
-maybe_wrap_model(model::AbstractMCMC.LogDensityModel) = model
 
 function supports_adaptation(strategy::Union{RandomSwap, SingleRandomSwap, NoSwap})
     throw(ValueError("Adaptation of the inverse temperature ladder is not currently supported under the chosen swap strategy $(strategy)."))
