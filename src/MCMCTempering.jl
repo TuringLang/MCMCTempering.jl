@@ -45,7 +45,6 @@ maybe_wrap_model(model::AbstractMCMC.LogDensityModel) = model
 
 """
     tempered(sampler, inverse_temperatures; kwargs...)
-    OR
     tempered(sampler, num_temps; swap_strategy=ReversibleSwap(), kwargs...)
 
 Return a tempered version of `sampler` using the provided `inverse_temperatures` or
@@ -65,21 +64,27 @@ inverse temperatures generated from `num_temps` and the `swap_strategy`.
 # See also
 - [`TemperedSampler`](@ref)
 - For more on the swap strategies:
-    - [`AbstractSwapStrategy`](@ref)
-    - [`ReversibleSwap`](@ref)
-    - [`NonReversibleSwap`](@ref)
-    - [`SingleSwap`](@ref)
-    - [`SingleRandomSwap`](@ref)
-    - [`RandomSwap`](@ref)
-    - [`NoSwap`](@ref)
+  - [`MCMCTempering.AbstractSwapStrategy`](@ref)
+  - [`ReversibleSwap`](@ref)
+  - [`NonReversibleSwap`](@ref)
+  - [`SingleSwap`](@ref)
+  - [`SingleRandomSwap`](@ref)
+  - [`RandomSwap`](@ref)
+  - [`NoSwap`](@ref)
+- For more on temperig strategies:
+  - [`MCMCTempering.AbstractTemperingStrategy`](@ref)
+  - [`MCMCTempering.PowerTemperingStrategy`](@ref)
+  - [`MCMCTempering.PathTemperingStrategy`](@ref)
 """
 function tempered(
     sampler::AbstractMCMC.AbstractSampler,
     num_temps::Integer;
     swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
+    tempering_strategy::AbstractTemperingStrategy=PowerTemperingStrategy(),
     kwargs...
 )
     return tempered(
+        # TODO: add `tempering_strategy` to the `generate_inverse_temperatures` call
         sampler, generate_inverse_temperatures(num_temps, swap_strategy);
         swap_strategy = swap_strategy,
         kwargs...
@@ -89,6 +94,7 @@ function tempered(
     sampler::AbstractMCMC.AbstractSampler,
     inverse_temperatures::Vector{<:Real};
     swap_strategy::AbstractSwapStrategy=ReversibleSwap(),
+    tempering_strategy::AbstractTemperingStrategy=PowerTemperingStrategy(),
     steps_per_swap::Integer=1,
     adapt::Bool=false,
     adapt_target::Real=0.234,
@@ -107,7 +113,7 @@ function tempered(
     # NOTE: We just make a repeated sampler for `sampler_inner`.
     # TODO: Generalize. Allow passing in a `MultiSampler`, etc.
     sampler_inner = sampler^steps_per_swap
-    return TemperedSampler(sampler_inner, inverse_temperatures, swap_strategy, adapt, adaptation_states)
+    return TemperedSampler(sampler_inner, inverse_temperatures, swap_strategy, tempering_strategy, adapt, adaptation_states)
 end
 
 end
