@@ -1,3 +1,26 @@
+abstract type AbstractTemperingStrategy end
+
+"""
+    PowerTemperingStrategy
+
+A strategy which simply raises the log-density to the power of `beta` to temper the model.
+"""
+struct PowerTemperingStrategy <: AbstractTemperingStrategy end
+
+"""
+    PathTemperingStrategy
+
+A strategy which tempers the model to a reference model.
+
+# Fields
+$(FIELDS)
+"""
+struct PathTemperingStrategy{D<:DistributionLogDensityProblem} <: AbstractTemperingStrategy
+    "reference model"
+    reference::D
+end
+PathTemperingStrategy(dist::Distributions.Distribution) = PathTemperingStrategy(DistributionLogDensityProblem(dist))
+
 """
     make_tempered_model([sampler, ]model, beta)
 
