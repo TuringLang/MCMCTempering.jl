@@ -44,7 +44,11 @@ function make_tempered_model(::PathTemperingStrategy, model, beta)
     return PathTemperedLogDensityProblem(model, beta)
 end
 # A wrapper for `LogDensityModel` to preserve the structure.
-function make_tempered_model(temperstrategy::AbstractTemperingStrategy, model::AbstractMCMC.LogDensityModel, beta)
+# HACK: Need to find a better way to do this.
+function make_tempered_model(temperstrategy::PowerTemperingStrategy, model::AbstractMCMC.LogDensityModel, beta)
+    return AbstractMCMC.LogDensityModel(make_tempered_model(temperstrategy, model.logdensity, beta))
+end
+function make_tempered_model(temperstrategy::PathTemperingStrategy, model::AbstractMCMC.LogDensityModel, beta)
     return AbstractMCMC.LogDensityModel(make_tempered_model(temperstrategy, model.logdensity, beta))
 end
 
