@@ -40,16 +40,22 @@ end
 
 # `PathTemperingStrategy`.
 """
-    PathTemperingStrategy <: AbstractTemperingStrategy
+    PathTemperingStrategy{R} <: AbstractTemperingStrategy
 
 A tempering strategy that interpolates between some reference log-density and the target log-density.
+
+# Fields
+$(FIELDS)
 """
-struct PathTemperingStrategy <: AbstractTemperingStrategy end
+struct PathTemperingStrategy{R} <: AbstractTemperingStrategy
+    "reference log density; assumed to implement both `rand` and`logdensity`"
+    reference::R
+end
 
 function make_tempered_model(tempering::PathTemperingStrategy, model, beta)
     if !implements_logdensity(model)
         error("`make_tempered_model` is not implemented for $(typeof(model)); either implement explicitly, or implement the LogDensityProblems.jl interface for `model`")
     end
 
-    return PowerTemperedLogDensityProblem(model, beta)
+    return PathTemperedLogDensityProblem(tempering.reference, model, beta)
 end

@@ -165,6 +165,10 @@ Return the state corresponding to the process indexed by `I...`.
 state_for_process(state::SwapState, I...) = state_for_process(state.states, I...)
 state_for_process(proc2state, I...) = proc2state[I...]
 
+# TOOD(torfjelde): Implement functionality for updating for updating one of the states
+# for a given chain. This is needed to update the a state from the refeernce distribution.
+function set_state_for_chain!! end
+
 """
     model_for_chain(ordering, sampler, model, state, I...)
 
@@ -405,6 +409,43 @@ end
     error("`SwapSampler` requires states from sampler other than `SwapSampler` to be initialized")
 end
 
+function swap_with_reference(
+    rng::Random.AbstractRNG,
+    temperingstrategy::PathTemperingStrategy,
+    model::MultiModel,
+    sampler::SwapSampler,
+    state,
+    i
+)
+    # Extract the corresponding chain.
+    state_i = state_for_chain(state, i)
+    model_i = model_for_chain(ProcessOrder(), sampler, model, state, i)
+
+    # Sample from the reference.
+    reference_params, reference_logprob = sample_from_reference(rng, temperingstrategy.reference)
+
+    # TODO(torfjelde): Check that this is correct.
+    # Compute the acceptance ratio.
+    logπiθi, logπiθref = compute_logdensities(model_i, state_i, reference_params)
+    logπrefθi = logdensity(temperingstrategy.reference, getparams(state_i))
+
+    # Compute the acceptance ratio.
+    logα = swap_acceptance_pt(logπrefθi, logπrefθref, logπiθi, logπiθref)
+    should_swap = -Random.randexp(rng) ≤ logα
+    return if should_swap
+        # TODO(torfjelde): make use of `set_state_for_chain!!` to update the state.
+        set_state_for_chain!(
+            state,
+            i,
+            setparams_and_logprob!!(model_i, state_i, reference_params, reference_logprob)
+        )
+    else
+        state
+    end
+end
+
+# NOTE(torfjelde): We don't need access to the `AbstractTemperingStrategy` used here because
+# this should be encoded in `model_i` and `model_j` already.
 """
     swap_attempt(rng, model, sampler, state, i, j)
 
