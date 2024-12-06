@@ -39,13 +39,15 @@ A `TemperedSampler` struct wraps a sampler upon which to apply the Parallel Temp
 
 $(FIELDS)
 """
-Base.@kwdef struct TemperedSampler{SplT,A,SwapT,Adapt} <: AbstractMCMC.AbstractSampler
+Base.@kwdef struct TemperedSampler{SplT,A,SwapT,TempT,Adapt} <: AbstractMCMC.AbstractSampler
     "sampler(s) used to target the tempered distributions"
     sampler::SplT
     "collection of inverse temperatures β; β[i] correponds i-th tempered model"
     chain_to_beta::A
     "strategy to use for swapping"
     swapstrategy::SwapT=ReversibleSwap()
+    "strategy to use for tempering"
+    temperstrategy::TempT=PowerTemperingStrategy()
     # TODO: Remove `adapt` and just consider `adaptation_states=nothing` as no adaptation.
     "boolean flag specifying whether or not to adapt"
     adapt=false
@@ -135,6 +137,8 @@ function transition_for_chain(transition::TemperedTransition, I...)
     chain_idx = transition.swaptransition.chain_to_process[I...]
     return transition.transition.transitions[chain_idx]
 end
+
+make_tempered_model(sampler::TemperedSampler, model, beta) = make_tempered_model(sampler.temperstrategy, model, beta)
 
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
