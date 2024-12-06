@@ -373,7 +373,7 @@ end
 
         @testset "Tempering of models" begin
             beta = 0.5
-            model_tempered = MCMCTempering.make_tempered_model(model, beta)
+            model_tempered = MCMCTempering.make_tempered_model(PowerTemperingStrategy(), model, beta)
             @test logdensity(model_tempered, initial_params) ≈ beta * logdensity(model, initial_params)
             @test last(logdensity_and_gradient(model_tempered, initial_params)) ≈
                 beta .* last(logdensity_and_gradient(model, initial_params))

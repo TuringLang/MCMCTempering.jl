@@ -15,10 +15,13 @@ A strategy which tempers the model to a reference model.
 # Fields
 $(FIELDS)
 """
-struct PathTemperingStrategy{D} <: AbstractTemperingStrategy
+Base.@kwdef struct PathTemperingStrategy{D} <: AbstractTemperingStrategy
     "reference model"
     reference::D
+    "specifies whether the reference should be sampled from using closed-form sampling"
+    closed_form_sample::Bool=false
 end
+PathTemperingStrategy(reference::Distributions.Distribution) = PathTemperingStrategy(reference, true)
 
 """
     make_tempered_model(sampler, model, beta)
@@ -69,7 +72,22 @@ function logdensity(model, x)
     end
     return LogDensityProblems.logdensity(model, x)
 end
-logdensity(model::AbstractMCMC.LogDensityModel, x) = LogDensityProblems.logdensity(model.logdensity, x)
+logdensity(model::AbstractMCMC.LogDensityModel, x) = logdensity(model.logdensity, x)
+logdensity(dist::Distributions.MultivariateDistribution, x) = Distributions.logpdf(dist, x)
+logdensity(dist::Distributions.UnivariateDistribution, x) = Distributions.logpdf(dist, only(x))
+
+"""
+    logdensity_and_gradient(model, x)
+
+Return the log-density and gradient of `model` at `x`.
+"""
+function logdensity_and_gradient(model, x)
+    if !implements_logdensity(model)
+        error("`logdensity_and_gradient` is not implemented for `$(typeof(model))`; either implement explicitly, or implement the LogDensityProblems.jl interface for `model`")
+    end
+    return LogDensityProblems.logdensity_and_gradient(model, x)
+end
+logdensity_and_gradient(model::AbstractMCMC.LogDensityModel, x) = logdensity_and_gradient(model.logdensity, x)
 
 """
     sample_and_logprob(rng, model)
@@ -78,5 +96,5 @@ Return a sample and its log-density from `model`.
 """
 function sample_and_logdensity(rng::Random.AbstractRNG, dist::Distributions.Distribution)
     params = rand(rng, dist)
-    return (params, logpdf(dist, params))
+    return (params, Distributions.logpdf(dist, params))
 end

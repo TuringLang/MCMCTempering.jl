@@ -1,9 +1,16 @@
 # Getting started: a simple Mixture of Gaussians example
 
+First, let's import MCMCTempering.jl as it comes with some convenience functions we'll need later.
+
+```@example gmm
+using MCMCTempering
+```
+
 Suppose we have a mixture of Gaussians, e.g. something like
 
 ```@example gmm
 using Distributions
+
 target_distribution = MixtureModel(
     Normal,
     [(-3, 1.5), (3, 1.5), (20, 1.5)],  # parameters
@@ -15,6 +22,7 @@ This is a simple 1-dimensional distribution, so let's visualize it:
 
 ```@example gmm
 using StatsPlots
+
 figsize = (800, 400)
 plot(target_distribution; components=false, label=nothing, size=figsize)
 ```
@@ -22,18 +30,8 @@ plot(target_distribution; components=false, label=nothing, size=figsize)
 We can convert a `Distribution` from [Distributions.jl](https://github.com/JuliaStats/Distributions.jl) into something we can pass to `sample` for many different samplers by implementing the [LogDensityProblems.jl](https://github.com/tpapp/LogDensityProblems.jl) interface:
 
 ```@example gmm
-using LogDensityProblems: LogDensityProblems
-
-struct DistributionLogDensity{D}
-    d::D
-end
-
-LogDensityProblems.logdensity(d::DistributionLogDensity, x) = loglikelihood(d.d, x)
-LogDensityProblems.dimension(d::DistributionLogDensity) = length(d.d)
-LogDensityProblems.capabilities(::Type{<:DistributionLogDensity}) = LogDensityProblems.LogDensityOrder{0}()
-
 # Wrap our target distribution.
-target_model = DistributionLogDensity(target_distribution)
+target_model = MCMCTempering.DistributionLogDensityProblem(target_distribution)
 ```
 
 ## Metropolis-Hastings (AdvancedMH.jl)
@@ -41,9 +39,8 @@ target_model = DistributionLogDensity(target_distribution)
 Immediately one might reach for a standard sampler, e.g. a random-walk Metropolis-Hastings (RWMH) from [`AdvancedMH.jl`](https://github.com/TuringLang/AdvancedMH.jl) and start sampling using `sample`:
 
 ```@example gmm
-using AdvancedMH, MCMCChains, LinearAlgebra
+using AdvancedMH, MCMCChains, LinearAlgebra, StableRNGs
 
-using StableRNGs
 rng = StableRNG(42) # To ensure reproducbility across devices.
 
 sampler = RWMH(MvNormal(zeros(1), I))
@@ -87,11 +84,9 @@ MCMCTempering.setparams_and_logprob!!
 Luckily, implementing these is quite easy:
 
 ```@example gmm
-using MCMCTempering
-
 MCMCTempering.getparams_and_logprob(transition::AdvancedMH.Transition) = transition.params, transition.lp
 function MCMCTempering.setparams_and_logprob!!(transition::AdvancedMH.Transition, params, lp)
-    return AdvancedMH.Transition(params, lp)
+    return AdvancedMH.Transition(params, lp, transition.accepted)
 end
 ```
 
@@ -99,7 +94,11 @@ Now that this is done, we can wrap `sampler` in a [`MCMCTempering.TemperedSample
 
 ```@example gmm
 inverse_temperatures = 0.90 .^ (0:20)
-sampler_tempered = TemperedSampler(sampler, inverse_temperatures)
+sampler_tempered = tempered(
+    sampler, 
+    inverse_temperatures; 
+    tempering_strategy=PathTemperingStrategy(MvNormal(zeros(1), 10.0))
+)
 ```
 
 aaaaand `sample`!

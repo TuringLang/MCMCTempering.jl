@@ -36,7 +36,12 @@ export tempered,
     SingleSwap,
     SingleRandomSwap,
     RandomSwap,
-    NoSwap
+    NoSwap,
+    PowerTemperingStrategy,
+    PathTemperingStrategy,
+    # External stuff.
+    LogDensityProblems
+
 
 # TODO: Should we make this trait-based instead?
 implements_logdensity(x) = LogDensityProblems.capabilities(x) !== nothing
@@ -113,7 +118,22 @@ function tempered(
     # NOTE: We just make a repeated sampler for `sampler_inner`.
     # TODO: Generalize. Allow passing in a `MultiSampler`, etc.
     sampler_inner = sampler^steps_per_swap
-    return TemperedSampler(sampler_inner, inverse_temperatures, swap_strategy, tempering_strategy, adapt, adaptation_states)
+
+    # If we're working with `tempering_strategy` which is a `PathTemperingStrategy` AND `tempering_strategy.closed_form_sample`
+    # then we construct the samplers explicitly, and make the reference sampler an `IIDSampler`.
+    samplers = if tempering_strategy isa PathTemperingStrategy && tempering_strategy.closed_form_sample
+        # Construct the samplers explicitly.
+        vcat(
+            fill(sampler, length(inverse_temperatures)),
+            [IIDSampler(tempering_strategy.reference)]
+        )
+    else
+        sampler_inner
+    end
+    # Moreover, if we're using `PathTemperingStrategy`, we also need to add an inverse temperature of 0.
+    inverse_temperatures = tempering_strategy isa PathTemperingStrategy ? vcat(inverse_temperatures, 0) : inverse_temperatures
+
+    return TemperedSampler(samplers, inverse_temperatures, swap_strategy, tempering_strategy, adapt, adaptation_states)
 end
 
 end

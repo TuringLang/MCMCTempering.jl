@@ -157,7 +157,7 @@ function AbstractMCMC.step(
     # TODO: Handle `initial_params` properly. Make sure that they respect the container-types used in
     # `MultiModel` and `MultiSampler`.
     initial_params_multi = initparams(model, initial_params)
-    transition_and_states = asyncmap(model.models, sampler.samplers, initial_params_multi) do model, sampler, initial_params
+    transition_and_states = map(model.models, sampler.samplers, initial_params_multi) do model, sampler, initial_params
         AbstractMCMC.step(rng, model, sampler; initial_params, kwargs...)
     end
 
@@ -173,7 +173,7 @@ function AbstractMCMC.step(
 )
     @assert length(model.models) == length(sampler.samplers) == length(states.states) "Number of models, samplers, and states must be equal."
 
-    transition_and_states = asyncmap(model.models, sampler.samplers, states.states) do model, sampler, state
+    transition_and_states = map(model.models, sampler.samplers, states.states) do model, sampler, state
         AbstractMCMC.step(rng, model, sampler, state; kwargs...)
     end
 

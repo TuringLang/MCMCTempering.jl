@@ -16,7 +16,7 @@
 
     # Samplers.
     rwmh = RWMH(MvNormal(Zeros(1), I))
-    rwmh_tempered = TemperedSampler(rwmh, inverse_temperatures)
+    rwmh_tempered = tempered(rwmh, inverse_temperatures; tempering_strategy=PathTemperingStrategy(MvNormal(Zeros(1), I)))
     rwmh_product = MCMCTempering.MultiSampler(Fill(rwmh, length(tempered_dists)))
     rwmh_product_with_swap = rwmh_product ∘ MCMCTempering.SwapSampler()
 
