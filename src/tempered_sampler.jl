@@ -171,6 +171,11 @@ function AbstractMCMC.step(
     )
 end
 
+function sample_and_logprob_from_reference(rng::Random.AbstractRNG, model)
+    x = rand(rng, model)
+    return x, logdensity(model, x)
+end
+
 function AbstractMCMC.step(
     rng::Random.AbstractRNG,
     model::AbstractMCMC.AbstractModel,
