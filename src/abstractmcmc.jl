@@ -104,4 +104,4 @@ end
 include("samplers/composition.jl")
 include("samplers/repeated.jl")
 include("samplers/multi.jl")
-
+include("samplers/iid.jl")
