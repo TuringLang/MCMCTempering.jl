@@ -26,7 +26,7 @@ MCMCTemperingAdvancedMHExt = ["AdvancedMH"]
 
 [compat]
 AbstractMCMC = "5"
-AdvancedHMC = "0.6"
+AdvancedHMC = "0.6, 0.7"
 AdvancedMH = "0.8"
 ConcreteStructs = "0.2"
 Distributions = "0.24, 0.25"
