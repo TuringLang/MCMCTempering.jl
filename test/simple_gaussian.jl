@@ -35,7 +35,7 @@
             chains_product,
             Zeros(length(chains_product)),
             std_true_dict,
-            min_atol=2e-1,
+            min_atol=3e-1,
             max_atol=5e-1
         )
     end

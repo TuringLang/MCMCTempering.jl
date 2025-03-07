@@ -1,6 +1,6 @@
 name = "MCMCTempering"
 uuid = "ce233488-44ea-4441-b732-192676ce2298"
-authors = ["Harrison Wilde <h.wilde@warwick.ac.uk> and contributors"]
+authors = ["Harrison Wilde <h.wilde@warwick.ac.uk>, Tor Erlend Fjelde <tef30@cam.ac.uk>, and contributors"]
 version = "0.4.0"
 
 [deps]
